@@ -6,6 +6,7 @@ export interface ScryfallCard {
 	cmc: number | null;
 	type_line: string | null;
 	oracle_text: string | null;
+	oracle_id: string | null;
 	image_uris: {
 		small: string;
 		normal: string;
@@ -28,8 +29,21 @@ export interface ScryfallCard {
 		};
 	}>;
 	set: string;
+	set_name: string;
 	collector_number: string;
 	rarity: string;
+	prices: {
+		usd: string | null;
+		usd_foil: string | null;
+		usd_etched: string | null;
+		eur: string | null;
+		eur_foil: string | null;
+		tix: string | null;
+	};
+	purchase_uris?: {
+		tcgplayer?: string;
+		cardmarket?: string;
+	};
 }
 
 export interface ScryfallCollectionResponse {
@@ -49,11 +63,31 @@ export interface ScryfallCollectionResponse {
 	data: ScryfallCard[];
 }
 
+export interface CardPrices {
+	usd: string | null;
+	usdFoil: string | null;
+	eur: string | null;
+	eurFoil: string | null;
+	tix: string | null;
+}
+
+export interface CardPrint {
+	name: string;
+	set: string;
+	setName: string;
+	price: string | null;
+	priceFoil: string | null;
+	imageUrl: string | null;
+}
+
 export interface WishlistCard {
 	name: string;
 	qty: number;
 	imageUrl: string | null;
 	manaCost: string | null;
+	prices?: CardPrices;
+	oracleId?: string;
+	printings?: CardPrint[];
 }
 
 export interface CardIdentifier {
@@ -70,6 +104,7 @@ export interface CardIdentifier {
 const SCRYFALL_API_URL = 'https://api.scryfall.com';
 const MAX_BATCH_SIZE = 75;
 const RATE_LIMIT_DELAY_MS = 100;
+const REQUEST_TIMEOUT_MS = 10000;
 
 export async function fetchCardsByIdentifiers(
 	identifiers: CardIdentifier[]
@@ -89,39 +124,55 @@ export async function fetchCardsByIdentifiers(
 	for (const batch of batches) {
 		await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
 
-		const response = await fetch(`${SCRYFALL_API_URL}/cards/collection`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Accept: 'application/json'
-			},
-			body: JSON.stringify({ identifiers: batch })
-		});
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-		if (!response.ok) {
-			if (response.status === 429) {
-				throw new Error('Rate limited by Scryfall API. Please try again in a moment.');
+		try {
+			const response = await fetch(`${SCRYFALL_API_URL}/cards/collection`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json'
+				},
+				body: JSON.stringify({ identifiers: batch }),
+				signal: controller.signal
+			});
+
+			clearTimeout(timeoutId);
+
+			if (!response.ok) {
+				if (response.status === 429) {
+					throw new Error('Rate limited by Scryfall API. Please try again in a moment.');
+				}
+				throw new Error(`Scryfall API error: ${response.status} ${response.statusText}`);
 			}
-			throw new Error(`Scryfall API error: ${response.status} ${response.statusText}`);
-		}
 
-		const data: ScryfallCollectionResponse = await response.json();
+			const data: ScryfallCollectionResponse = await response.json();
 
-		allCards.push(...data.data);
+			allCards.push(...data.data);
 
-		if (data.not_found && data.not_found.length > 0) {
-			for (const notFound of data.not_found) {
-				const identifier: CardIdentifier = {};
-				if (notFound.id) identifier.id = notFound.id;
-				if (notFound.mtgo_id) identifier.mtgo_id = notFound.mtgo_id;
-				if (notFound.multiverse_id) identifier.multiverse_id = notFound.multiverse_id;
-				if (notFound.oracle_id) identifier.oracle_id = notFound.oracle_id;
-				if (notFound.illustration_id) identifier.illustration_id = notFound.illustration_id;
-				if (notFound.name) identifier.name = notFound.name;
-				if (notFound.set) identifier.set = notFound.set;
-				if (notFound.collector_number) identifier.collector_number = notFound.collector_number;
-				allNotFound.push(identifier);
+			if (data.not_found && data.not_found.length > 0) {
+				for (const notFound of data.not_found) {
+					const identifier: CardIdentifier = {};
+					if (notFound.id) identifier.id = notFound.id;
+					if (notFound.mtgo_id) identifier.mtgo_id = notFound.mtgo_id;
+					if (notFound.multiverse_id) identifier.multiverse_id = notFound.multiverse_id;
+					if (notFound.oracle_id) identifier.oracle_id = notFound.oracle_id;
+					if (notFound.illustration_id) identifier.illustration_id = notFound.illustration_id;
+					if (notFound.name) identifier.name = notFound.name;
+					if (notFound.set) identifier.set = notFound.set;
+					if (notFound.collector_number) identifier.collector_number = notFound.collector_number;
+					allNotFound.push(identifier);
+				}
 			}
+		} catch (err) {
+			clearTimeout(timeoutId);
+			if (err instanceof Error && err.name === 'AbortError') {
+				const error = new Error('Request timed out. Please try again.');
+				error.cause = err;
+				throw error;
+			}
+			throw err;
 		}
 	}
 
@@ -151,7 +202,15 @@ export function convertToWishlistCards(
 				name: parsed.name,
 				qty: parsed.qty,
 				imageUrl,
-				manaCost
+				manaCost,
+				prices: {
+					usd: scryfallCard.prices.usd,
+					usdFoil: scryfallCard.prices.usd_foil,
+					eur: scryfallCard.prices.eur,
+					eurFoil: scryfallCard.prices.eur_foil,
+					tix: scryfallCard.prices.tix
+				},
+				oracleId: scryfallCard.oracle_id ?? undefined
 			};
 		}
 

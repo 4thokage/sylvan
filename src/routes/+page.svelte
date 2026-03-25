@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { parseCardList } from '$lib/parser';
-	import { getCards, type WishlistCard } from '$lib/scryfall/mock';
+	import { getCards, type WishlistCard } from '$lib/scryfall/api';
+	import { getCreatorFingerprint } from '$lib/device';
 
 	let input = $state('');
 	let isSaving = $state(false);
@@ -48,9 +49,10 @@
 		error = null;
 
 		try {
+			const fingerprint = getCreatorFingerprint();
 			const response = await fetch('/api/save', {
 				method: 'POST',
-				body: JSON.stringify({ cards: wishlistCards }),
+				body: JSON.stringify({ cards: wishlistCards, creatorFingerprint: fingerprint }),
 				headers: { 'Content-Type': 'application/json' }
 			});
 
@@ -60,7 +62,6 @@
 				savedId = result.data.id;
 				const url = `${window.location.origin}/${savedId}`;
 				navigator.clipboard.writeText(url);
-				window.location.href = `/${savedId}`;
 			} else {
 				error = result.error?.message ?? 'Failed to save wishlist';
 			}

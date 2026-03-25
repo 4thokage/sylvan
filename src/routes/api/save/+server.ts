@@ -10,14 +10,25 @@ export const POST: RequestHandler = async ({ request }) => {
 			qty: number;
 			imageUrl: string | null;
 			manaCost: string | null;
+			oracleId?: string;
 		}>;
+		const creatorFingerprint = data.creatorFingerprint as string | undefined;
 
 		const id = nanoid(10);
 
+		const cardsToSave = cards.map((card) => ({
+			name: card.name,
+			qty: card.qty,
+			imageUrl: card.imageUrl,
+			manaCost: card.manaCost,
+			oracleId: card.oracleId || null
+		}));
+
 		const { error } = await supabase.from('wishlists').insert({
 			id,
-			cards: cards,
-			created_at: new Date().toISOString()
+			cards: cardsToSave,
+			created_at: new Date().toISOString(),
+			...(creatorFingerprint && { creator_fingerprint: creatorFingerprint })
 		});
 
 		if (error) {

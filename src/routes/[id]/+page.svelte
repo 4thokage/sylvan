@@ -14,7 +14,42 @@
 </script>
 
 <svelte:head>
-	<title>Sylvan Web - Wishlist {data.wishlist.id}</title>
+	<title>Sylvan Web - MTG Wishlist ({cards.length} cards)</title>
+	<meta
+		name="description"
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
+	/>
+
+	<!-- Open Graph / Facebook -->
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content="MTG Wishlist - {cards.length} cards" />
+	<meta
+		property="og:description"
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
+	/>
+	{#if cards[0]?.imageUrl}
+		<meta property="og:image" content={cards[0].imageUrl} />
+	{/if}
+
+	<!-- Twitter -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="MTG Wishlist - {cards.length} cards" />
+	<meta
+		name="twitter:description"
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
+	/>
+	{#if cards[0]?.imageUrl}
+		<meta name="twitter:image" content={cards[0].imageUrl} />
+	{/if}
 </svelte:head>
 
 <div class="min-h-screen bg-zinc-950 text-zinc-100">

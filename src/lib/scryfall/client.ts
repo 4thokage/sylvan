@@ -104,7 +104,6 @@ export interface CardIdentifier {
 const SCRYFALL_API_URL = 'https://api.scryfall.com';
 const MAX_BATCH_SIZE = 75;
 const RATE_LIMIT_DELAY_MS = 100;
-const REQUEST_TIMEOUT_MS = 10000;
 
 export async function fetchCardsByIdentifiers(
 	identifiers: CardIdentifier[]
@@ -124,9 +123,6 @@ export async function fetchCardsByIdentifiers(
 	for (const batch of batches) {
 		await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
 
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
 		try {
 			const response = await fetch(`${SCRYFALL_API_URL}/cards/collection`, {
 				method: 'POST',
@@ -134,11 +130,8 @@ export async function fetchCardsByIdentifiers(
 					'Content-Type': 'application/json',
 					Accept: 'application/json'
 				},
-				body: JSON.stringify({ identifiers: batch }),
-				signal: controller.signal
+				body: JSON.stringify({ identifiers: batch })
 			});
-
-			clearTimeout(timeoutId);
 
 			if (!response.ok) {
 				if (response.status === 429) {
@@ -166,12 +159,7 @@ export async function fetchCardsByIdentifiers(
 				}
 			}
 		} catch (err) {
-			clearTimeout(timeoutId);
-			if (err instanceof Error && err.name === 'AbortError') {
-				const error = new Error('Request timed out. Please try again.');
-				error.cause = err;
-				throw error;
-			}
+			console.error('[ScryfallClient] Error fetching batch:', err);
 			throw err;
 		}
 	}

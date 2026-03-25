@@ -76,6 +76,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Failed to fetch prices';
 		console.error('[PriceAPI] Error:', err);
+		console.error('[PriceAPI] Stack:', err instanceof Error ? err.stack : 'no stack');
 		return new Response(JSON.stringify({ success: false, error: { message } }), {
 			status: 500,
 			headers: { 'Content-Type': 'application/json' }

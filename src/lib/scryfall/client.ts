@@ -128,7 +128,8 @@ export async function fetchCardsByIdentifiers(
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					Accept: 'application/json'
+					Accept: 'application/json',
+					'User-Agent': 'SylvanApp/1.0 (jsr@jose-rodrigues.info)'
 				},
 				body: JSON.stringify({ identifiers: batch })
 			});
@@ -137,7 +138,8 @@ export async function fetchCardsByIdentifiers(
 				if (response.status === 429) {
 					throw new Error('Rate limited by Scryfall API. Please try again in a moment.');
 				}
-				throw new Error(`Scryfall API error: ${response.status} ${response.statusText}`);
+				const errorText = await response.text();
+				throw new Error(`Scryfall API error: ${response.status} ${errorText}`);
 			}
 
 			const data: ScryfallCollectionResponse = await response.json();

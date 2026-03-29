@@ -4,8 +4,9 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
-	import type { WishlistCard } from '$lib/scryfall/api';
+	import type { WishlistCard, CardPrint } from '$lib/scryfall/api';
 	import PriceTooltip from '$lib/components/PriceTooltip.svelte';
+	import PrintingsDropdown from '$lib/components/PrintingsDropdown.svelte';
 
 	interface CardPrices {
 		usd: string | null;
@@ -25,6 +26,7 @@
 	let cards = $state<WishlistCard[]>([]);
 	let pricesLoading = $state(true);
 	let pricesError = $state<string | null>(null);
+	let openPrintingsForCard = $state<string | null>(null);
 
 	const totalCards = $derived(cards.reduce((sum, c) => sum + c.qty, 0));
 	const creatorFingerprint = $derived(wishlist.creator_fingerprint as string | null);
@@ -92,6 +94,27 @@
 		} finally {
 			isDeleting = false;
 		}
+	}
+
+	function handlePrintSelect(cardName: string, print: CardPrint, index: number) {
+		cards = cards.map((card) => {
+			if (card.name === cardName) {
+				return {
+					...card,
+					imageUrl: print.imageUrl,
+					manaCost: print.manaCost,
+					prices: {
+						usd: print.price,
+						usdFoil: print.priceFoil,
+						eur: null,
+						eurFoil: null,
+						tix: null
+					},
+					selectedPrintIndex: index
+				};
+			}
+			return card;
+		});
 	}
 </script>
 
@@ -185,9 +208,10 @@
 
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 			{#each cards as card (card.name)}
+				{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
 				<PriceTooltip {card}>
 					<div
-						class="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition-all hover:scale-[1.02] hover:border-zinc-700"
+						class="group relative cursor-pointer overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition-all hover:scale-[1.02] hover:border-zinc-700"
 					>
 						{#if card.imageUrl}
 							<img
@@ -206,8 +230,34 @@
 						>
 							×{card.qty}
 						</div>
+						{#if card.selectedPrintIndex !== undefined}
+							<div
+								class="absolute bottom-14 left-2 rounded bg-emerald-900/80 px-2 py-0.5 text-[10px] text-emerald-300"
+							>
+								{(card.printings?.[card.selectedPrintIndex]?.set ?? '').toUpperCase()}
+							</div>
+						{/if}
 						<div class="border-t border-zinc-800 p-2">
-							<p class="truncate text-xs text-zinc-300">{card.name}</p>
+							<div class="flex items-center justify-between">
+								<p class="truncate text-xs text-zinc-300">{card.name}</p>
+								<button
+									type="button"
+									class="edit-btn text-zinc-500 hover:text-zinc-300"
+									data-card-id={cardId}
+									aria-label="Edit printing"
+									onclick={() =>
+										(openPrintingsForCard = openPrintingsForCard === card.name ? null : card.name)}
+								>
+									<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+										/>
+									</svg>
+								</button>
+							</div>
 							{#if card.manaCost}
 								<p class="mt-0.5 text-xs text-zinc-500">{card.manaCost}</p>
 							{/if}
@@ -216,5 +266,23 @@
 				</PriceTooltip>
 			{/each}
 		</div>
+		{#each cards as card (card.name)}
+			{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
+			{@const positionRef =
+				typeof document !== 'undefined'
+					? document.querySelector(`[data-card-id="${cardId}"]`)
+					: null}
+			{#if openPrintingsForCard === card.name}
+				<PrintingsDropdown
+					{card}
+					positionRef={positionRef as HTMLElement}
+					onSelect={(print, index) => {
+						handlePrintSelect(card.name, print, index);
+						openPrintingsForCard = null;
+					}}
+					isOpen={true}
+				/>
+			{/if}
+		{/each}
 	</main>
 </div>

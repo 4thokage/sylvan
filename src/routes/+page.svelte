@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { parseCardList } from '$lib/parser';
-	import { getCards, type WishlistCard } from '$lib/scryfall/api';
+	import { getCards, type WishlistCard, type CardPrint } from '$lib/scryfall/api';
 	import { getCreatorFingerprint } from '$lib/device';
+	import PrintingsDropdown from '$lib/components/PrintingsDropdown.svelte';
 
 	let input = $state('');
 	let isSaving = $state(false);
@@ -10,6 +11,7 @@
 	let wishlistCards = $state<WishlistCard[]>([]);
 	let isLoading = $state(false);
 	let scryfallError = $state<string | null>(null);
+	let openPrintingsForCard = $state<string | null>(null);
 
 	const parsedCards = $derived(parseCardList(input));
 	const hasCards = $derived(parsedCards.length > 0);
@@ -76,6 +78,27 @@
 		if (!savedId) return;
 		const url = `${window.location.origin}/${savedId}`;
 		navigator.clipboard.writeText(url);
+	}
+
+	function handlePrintSelect(cardName: string, print: CardPrint, index: number) {
+		wishlistCards = wishlistCards.map((card) => {
+			if (card.name === cardName) {
+				return {
+					...card,
+					imageUrl: print.imageUrl,
+					manaCost: print.manaCost,
+					prices: {
+						usd: print.price,
+						usdFoil: print.priceFoil,
+						eur: null,
+						eurFoil: null,
+						tix: null
+					},
+					selectedPrintIndex: index
+				};
+			}
+			return card;
+		});
 	}
 </script>
 
@@ -181,6 +204,7 @@
 					{:else if hasCards}
 						<div class="grid max-h-[500px] grid-cols-2 gap-4 overflow-y-auto pr-2 sm:grid-cols-3">
 							{#each wishlistCards as card (card.name)}
+								{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
 								<div
 									class="group relative overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 transition-all hover:scale-[1.02] hover:border-zinc-700"
 								>
@@ -201,8 +225,40 @@
 									>
 										×{card.qty}
 									</div>
+									{#if card.selectedPrintIndex !== undefined}
+										<div
+											class="absolute bottom-14 left-2 rounded bg-emerald-900/80 px-2 py-0.5 text-[10px] text-emerald-300"
+										>
+											{(card.printings?.[card.selectedPrintIndex]?.set ?? '').toUpperCase()}
+										</div>
+									{/if}
 									<div class="border-t border-zinc-800 p-2">
-										<p class="truncate text-xs text-zinc-300">{card.name}</p>
+										<div class="flex items-center justify-between">
+											<p class="truncate text-xs text-zinc-300">{card.name}</p>
+											<button
+												type="button"
+												class="edit-btn text-zinc-500 hover:text-zinc-300"
+												data-card-id={cardId}
+												aria-label="Edit printing"
+												onclick={() =>
+													(openPrintingsForCard =
+														openPrintingsForCard === card.name ? null : card.name)}
+											>
+												<svg
+													class="h-3.5 w-3.5"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+													/>
+												</svg>
+											</button>
+										</div>
 										{#if card.manaCost}
 											<p class="mt-0.5 text-xs text-zinc-500">{card.manaCost}</p>
 										{/if}
@@ -210,6 +266,24 @@
 								</div>
 							{/each}
 						</div>
+						{#each wishlistCards as card (card.name)}
+							{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
+							{@const positionRef =
+								typeof document !== 'undefined'
+									? document.querySelector(`[data-card-id="${cardId}"]`)
+									: null}
+							{#if openPrintingsForCard === card.name}
+								<PrintingsDropdown
+									{card}
+									positionRef={positionRef as HTMLElement}
+									onSelect={(print, index) => {
+										handlePrintSelect(card.name, print, index);
+										openPrintingsForCard = null;
+									}}
+									isOpen={true}
+								/>
+							{/if}
+						{/each}
 					{:else}
 						<div
 							class="flex h-[500px] items-center justify-center rounded-xl border-2 border-dashed border-zinc-800 bg-zinc-900/50"

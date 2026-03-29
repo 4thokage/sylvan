@@ -11,6 +11,9 @@
 	let showTooltip = $state(false);
 	let isMobile = $state(false);
 	let showBottomSheet = $state(false);
+	let buttonRef: HTMLButtonElement | null = $state(null);
+
+	let tooltipStyle = $state('');
 
 	$effect(() => {
 		if (typeof window !== 'undefined') {
@@ -22,8 +25,27 @@
 		if (isMobile) {
 			showBottomSheet = true;
 		} else {
+			updateTooltipPosition();
 			showTooltip = true;
 		}
+	}
+
+	function updateTooltipPosition() {
+		if (!buttonRef) return;
+		const rect = buttonRef.getBoundingClientRect();
+		const viewportHeight = window.innerHeight;
+		const TOOLTIP_HEIGHT = 220;
+		const MARGIN = 8;
+
+		const spaceBelow = viewportHeight - rect.bottom;
+		const spaceAbove = rect.top;
+
+		const showAbove = spaceAbove > spaceBelow && spaceAbove > TOOLTIP_HEIGHT + MARGIN;
+
+		const horizontal = rect.left + rect.width / 2;
+		const vertical = showAbove ? rect.top - MARGIN : rect.bottom + MARGIN;
+
+		tooltipStyle = `left: ${horizontal}px; top: ${vertical}px; transform: translateX(-50%);`;
 	}
 
 	function closeTooltip() {
@@ -44,6 +66,7 @@
 	<button
 		type="button"
 		class="cursor-pointer"
+		bind:this={buttonRef}
 		onclick={handleInteraction}
 		onmouseenter={!isMobile ? handleInteraction : undefined}
 		onmouseleave={!isMobile ? closeTooltip : undefined}
@@ -53,8 +76,9 @@
 
 	{#if !isMobile && showTooltip}
 		<div
-			class="absolute top-full left-1/2 z-50 mt-2 w-64 -translate-x-1/2 rounded-lg border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
+			class="fixed z-50 w-64 rounded-lg border border-zinc-700 bg-zinc-900 p-4 shadow-xl"
 			role="tooltip"
+			style={tooltipStyle}
 		>
 			<h4 class="mb-3 border-b border-zinc-700 pb-2 text-sm font-semibold text-zinc-200">Prices</h4>
 			{#if card.prices}

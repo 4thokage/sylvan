@@ -72,12 +72,16 @@ export interface CardPrices {
 }
 
 export interface CardPrint {
+	id: string;
 	name: string;
 	set: string;
 	setName: string;
+	collectorNumber: string;
+	rarity: string;
 	price: string | null;
 	priceFoil: string | null;
 	imageUrl: string | null;
+	manaCost: string | null;
 }
 
 export interface WishlistCard {
@@ -88,6 +92,7 @@ export interface WishlistCard {
 	prices?: CardPrices;
 	oracleId?: string;
 	printings?: CardPrint[];
+	selectedPrintIndex?: number;
 }
 
 export interface CardIdentifier {
@@ -246,4 +251,71 @@ export function createCardIdentifiers(
 	}
 
 	return identifiers;
+}
+
+export interface ScryfallSearchResponse {
+	object: 'list';
+	total_cards: number;
+	has_more: boolean;
+	data: ScryfallCard[];
+}
+
+export async function fetchAllPrintings(cardName: string): Promise<CardPrint[]> {
+	const encodedName = encodeURIComponent(cardName);
+	const prints: CardPrint[] = [];
+	let page = 1;
+	let hasMore = true;
+
+	while (hasMore) {
+		await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS));
+
+		try {
+			const response = await fetch(
+				`${SCRYFALL_API_URL}/cards/search?q=${encodedName}&unique=prints&order=released&dir=desc&page=${page}`,
+				{
+					headers: {
+						Accept: 'application/json',
+						'User-Agent': 'SylvanApp/1.0 (jsr@jose-rodrigues.info)'
+					}
+				}
+			);
+
+			if (!response.ok) {
+				if (response.status === 429) {
+					throw new Error('Rate limited by Scryfall API. Please try again in a moment.');
+				}
+				const errorText = await response.text();
+				throw new Error(`Scryfall API error: ${response.status} ${errorText}`);
+			}
+
+			const data: ScryfallSearchResponse = await response.json();
+
+			for (const card of data.data) {
+				const imageUrl =
+					card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null;
+				const manaCost = card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null;
+
+				prints.push({
+					id: card.id,
+					name: card.name,
+					set: card.set,
+					setName: card.set_name,
+					collectorNumber: card.collector_number,
+					rarity: card.rarity,
+					price: card.prices.usd,
+					priceFoil: card.prices.usd_foil,
+					imageUrl,
+					manaCost
+				});
+			}
+
+			hasMore = data.has_more;
+			page++;
+		} catch (err) {
+			console.error('[ScryfallClient] Error fetching printings:', err);
+			throw err;
+		}
+	}
+
+	return prints;
 }

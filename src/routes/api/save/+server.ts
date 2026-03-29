@@ -11,6 +11,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			imageUrl: string | null;
 			manaCost: string | null;
 			oracleId?: string;
+			selectedPrintIndex?: number;
 		}>;
 		const creatorFingerprint = data.creatorFingerprint as string | undefined;
 
@@ -21,7 +22,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			qty: card.qty,
 			imageUrl: card.imageUrl,
 			manaCost: card.manaCost,
-			oracleId: card.oracleId || null
+			oracleId: card.oracleId || null,
+			selectedPrintIndex: card.selectedPrintIndex ?? null
 		}));
 
 		const { error } = await supabase.from('wishlists').insert({

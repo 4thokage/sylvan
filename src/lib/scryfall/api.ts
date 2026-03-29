@@ -1,5 +1,10 @@
 export type { ScryfallCard, WishlistCard, CardIdentifier, CardPrices, CardPrint } from './client';
-export { fetchCardsByIdentifiers, convertToWishlistCards, createCardIdentifiers } from './client';
+export {
+	fetchCardsByIdentifiers,
+	convertToWishlistCards,
+	createCardIdentifiers,
+	fetchAllPrintings
+} from './client';
 
 import type { ParsedCard } from '$lib/parser';
 import {

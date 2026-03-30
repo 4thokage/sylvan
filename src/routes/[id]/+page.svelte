@@ -29,6 +29,13 @@
 	let openPrintingsForCard = $state<string | null>(null);
 
 	const totalCards = $derived(cards.reduce((sum, c) => sum + c.qty, 0));
+	const totalEurValue = $derived(
+		cards.reduce((sum, card) => {
+			const price = parseFloat(card.prices?.eur || '0');
+			return sum + price * card.qty;
+		}, 0)
+	);
+	const ownerName = $derived(wishlist.owner_name as string | null);
 	const creatorFingerprint = $derived(wishlist.creator_fingerprint as string | null);
 	const canDelete = $derived(creatorFingerprint === getCreatorFingerprint());
 	let isDeleting = $state(false);
@@ -41,21 +48,45 @@
 			const response = await fetch('/api/prices', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cards: rawCards.map((c) => ({ name: c.name })) })
+				body: JSON.stringify({
+					cards: rawCards.map((c) => ({
+						name: c.name,
+						selectedPrintIndex: c.selectedPrintIndex
+					}))
+				})
 			});
 
 			const result = await response.json();
 
 			if (result.success && result.data?.prices) {
 				const pricesMap = new SvelteMap<string, CardPrices>();
+				const imageMap = new SvelteMap<string, string | null>();
+				const manaCostMap = new SvelteMap<string, string | null>();
+
 				for (const p of result.data.prices) {
-					if (p.prices) {
+					if (p.isSelected && p.selectedPrintIndex !== undefined) {
+						if (p.prices) {
+							pricesMap.set(p.name.toLowerCase(), p.prices);
+						}
+						if (p.imageUrl) {
+							imageMap.set(p.name.toLowerCase(), p.imageUrl);
+						}
+						if (p.manaCost) {
+							manaCostMap.set(p.name.toLowerCase(), p.manaCost);
+						}
+					} else if (p.prices && !p.isSelected) {
 						pricesMap.set(p.name.toLowerCase(), p.prices);
 					}
 				}
 
 				cards = rawCards.map((card) => ({
 					...card,
+					...(imageMap.get(card.name.toLowerCase()) && {
+						imageUrl: imageMap.get(card.name.toLowerCase())
+					}),
+					...(manaCostMap.get(card.name.toLowerCase()) && {
+						manaCost: manaCostMap.get(card.name.toLowerCase())
+					}),
 					prices: pricesMap.get(card.name.toLowerCase()) || undefined
 				}));
 			} else {
@@ -161,8 +192,11 @@
 	<header class="border-b border-zinc-800 px-6 py-4">
 		<div class="mx-auto flex max-w-7xl items-center justify-between">
 			<div>
-				<h1 class="text-2xl font-semibold tracking-tight text-emerald-400">Sylvan Web</h1>
-				<p class="mt-1 text-sm text-zinc-500">Shared Wishlist</p>
+				{#if ownerName}
+					<p class="mt-1 text-sm text-zinc-500">{ownerName}'s Wishlist</p>
+				{:else}
+					<p class="mt-1 text-sm text-zinc-500">Shared Wishlist</p>
+				{/if}
 			</div>
 			<div class="flex items-center gap-4">
 				<a
@@ -198,7 +232,9 @@
 			</div>
 		{/if}
 		<div class="mb-6 flex items-center justify-between">
-			<p class="text-zinc-500">{cards.length} unique cards · {totalCards} total</p>
+			<p class="text-zinc-500">
+				{cards.length} unique cards · {totalCards} total · €{totalEurValue.toFixed(2)}
+			</p>
 			{#if pricesLoading}
 				<span class="text-xs text-zinc-500">Loading prices...</span>
 			{:else if pricesError}

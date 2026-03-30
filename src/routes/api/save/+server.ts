@@ -2,8 +2,11 @@ import type { RequestHandler } from './$types';
 import { nanoid } from 'nanoid';
 import { supabase } from '$lib/server/supabase';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
+		const auth = await locals.auth();
+		const clerkUserId = auth.userId;
+
 		const data = await request.json();
 		const cards = data.cards as Array<{
 			name: string;
@@ -14,6 +17,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			selectedPrintIndex?: number;
 		}>;
 		const creatorFingerprint = data.creatorFingerprint as string | undefined;
+		const ownerName = data.ownerName as string | null | undefined;
 
 		const id = nanoid(10);
 
@@ -30,7 +34,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			id,
 			cards: cardsToSave,
 			created_at: new Date().toISOString(),
-			...(creatorFingerprint && { creator_fingerprint: creatorFingerprint })
+			...(creatorFingerprint && { creator_fingerprint: creatorFingerprint }),
+			...(ownerName && { owner_name: ownerName }),
+			...(clerkUserId && { clerk_user_id: clerkUserId }),
+			visibility: 'public'
 		});
 
 		if (error) {

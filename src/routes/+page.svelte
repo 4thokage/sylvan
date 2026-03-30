@@ -5,6 +5,7 @@
 	import PrintingsDropdown from '$lib/components/PrintingsDropdown.svelte';
 
 	let input = $state('');
+	let ownerName = $state('');
 	let isSaving = $state(false);
 	let savedId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -16,6 +17,12 @@
 	const parsedCards = $derived(parseCardList(input));
 	const hasCards = $derived(parsedCards.length > 0);
 	const totalCards = $derived(parsedCards.reduce((sum, c) => sum + c.qty, 0));
+	const totalEurValue = $derived(
+		wishlistCards.reduce((sum, card) => {
+			const price = parseFloat(card.prices?.eur || '0');
+			return sum + price * card.qty;
+		}, 0)
+	);
 
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -54,7 +61,11 @@
 			const fingerprint = getCreatorFingerprint();
 			const response = await fetch('/api/save', {
 				method: 'POST',
-				body: JSON.stringify({ cards: wishlistCards, creatorFingerprint: fingerprint }),
+				body: JSON.stringify({
+					cards: wishlistCards,
+					creatorFingerprint: fingerprint,
+					ownerName: ownerName || null
+				}),
 				headers: { 'Content-Type': 'application/json' }
 			});
 
@@ -103,13 +114,12 @@
 </script>
 
 <svelte:head>
-	<title>Sylvan Web - MTG Wishlist</title>
+	<title>Sylvan - MTG Toolbox</title>
 	<meta name="description" content="Create and share your MTG wishlist" />
 </svelte:head>
 
 <div class="min-h-screen bg-zinc-950 text-zinc-100">
 	<header class="border-b border-zinc-800 px-6 py-4">
-		<h1 class="text-2xl font-semibold tracking-tight text-emerald-400">Sylvan Web</h1>
 		<p class="mt-1 text-sm text-zinc-500">MTG Wishlist Manager</p>
 	</header>
 
@@ -158,17 +168,27 @@
 1 Thespian Stage"
 						class="h-[500px] w-full resize-none rounded-xl border border-zinc-800 bg-zinc-900 p-4 font-mono text-sm leading-relaxed text-zinc-200 placeholder-zinc-600 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
 					></textarea>
-					<div class="flex items-center justify-between">
-						<p class="text-sm text-zinc-500">
-							{parsedCards.length} unique cards · {totalCards} total
-						</p>
-						<button
-							onclick={saveWishlist}
-							disabled={!hasCards || isSaving}
-							class="rounded-lg bg-emerald-600 px-6 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
-						>
-							{isSaving ? 'Saving...' : 'Save Wishlist'}
-						</button>
+					<div class="flex items-center justify-between gap-4">
+						<div class="flex-1">
+							<input
+								type="text"
+								bind:value={ownerName}
+								placeholder="Your name (optional)"
+								class="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/50 focus:outline-none"
+							/>
+						</div>
+						<div class="flex items-center gap-4">
+							<p class="text-sm text-zinc-500">
+								{parsedCards.length} unique cards · {totalCards} total · €{totalEurValue.toFixed(2)}
+							</p>
+							<button
+								onclick={saveWishlist}
+								disabled={!hasCards || isSaving}
+								class="rounded-lg bg-emerald-600 px-6 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-zinc-700"
+							>
+								{isSaving ? 'Saving...' : 'Save Wishlist'}
+							</button>
+						</div>
 					</div>
 					{#if error}
 						<p class="text-sm text-red-400">{error}</p>

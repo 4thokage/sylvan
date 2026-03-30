@@ -1,14 +1,17 @@
 import type { RequestHandler } from './$types';
 import { fetchCardsByIdentifiers, type CardIdentifier } from '$lib/scryfall/api';
 
+interface CardInput {
+	name: string;
+	set?: string;
+	collector_number?: string;
+	selectedPrintIndex?: number;
+}
+
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const data = await request.json();
-		const cards = data.cards as Array<{
-			name: string;
-			set?: string;
-			collector_number?: string;
-		}>;
+		const cards = data.cards as CardInput[];
 
 		if (!cards || cards.length === 0) {
 			return new Response(
@@ -20,7 +23,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			);
 		}
 
-		console.log('[PriceAPI] Fetching prices for cards:', cards.length);
+		const cardsWithPrintSelection = cards.filter((c) => c.selectedPrintIndex !== undefined);
+		const cardsWithoutPrintSelection = cards.filter((c) => c.selectedPrintIndex === undefined);
+
+		console.log('[PriceAPI] Cards with print selection:', cardsWithPrintSelection.length);
+		console.log('[PriceAPI] Cards without print selection:', cardsWithoutPrintSelection.length);
 
 		const identifiers: CardIdentifier[] = cards.map((card) => ({
 			name: card.name,
@@ -46,8 +53,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		>();
 
+		const cardDetailsMap = new Map<
+			string,
+			{
+				imageUrl: string | null;
+				manaCost: string | null;
+			}
+		>();
+
 		for (const card of scryfallCards) {
 			const key = card.name.toLowerCase();
+			const imageUrl = card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null;
+			const manaCost = card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null;
+
 			if (!pricesMap.has(key)) {
 				pricesMap.set(key, {
 					usd: card.prices.usd,
@@ -59,13 +77,24 @@ export const POST: RequestHandler = async ({ request }) => {
 					set: card.set,
 					setName: card.set_name
 				});
+
+				cardDetailsMap.set(key, { imageUrl, manaCost });
 			}
 		}
 
-		const prices = cards.map((card) => ({
-			name: card.name,
-			prices: pricesMap.get(card.name.toLowerCase()) || null
-		}));
+		const prices = cards.map((card) => {
+			const key = card.name.toLowerCase();
+			const isSelected = card.selectedPrintIndex !== undefined;
+
+			return {
+				name: card.name,
+				selectedPrintIndex: card.selectedPrintIndex,
+				isSelected,
+				prices: pricesMap.get(key) || null,
+				imageUrl: cardDetailsMap.get(key)?.imageUrl || null,
+				manaCost: cardDetailsMap.get(key)?.manaCost || null
+			};
+		});
 
 		console.log('[PriceAPI] Returning prices:', prices.length);
 

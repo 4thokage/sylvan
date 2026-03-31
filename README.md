@@ -1,4 +1,6 @@
 # Sylvan Web
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/4thokage/sylvan)
+
 
 Magic: The Gathering collection and trade matching platform.
 

@@ -16,6 +16,13 @@
 			<div class="mx-auto flex max-w-7xl items-center justify-between">
 				<a href="/" class="text-2xl font-semibold tracking-tight text-emerald-400"> Sylvan </a>
 				<div class="flex items-center gap-4">
+					<a
+						href="/scan"
+						class="text-sm text-zinc-400 hover:text-zinc-200"
+						data-sveltekit-preload-data
+					>
+						Scan
+					</a>
 					<Show when="signed-in">
 						<a
 							href="/collection"

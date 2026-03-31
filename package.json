@@ -34,18 +34,18 @@
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
-		"svelte": "^5.55.0",
-		"svelte-check": "^4.4.5",
+		"svelte": "^5.55.1",
+		"svelte-check": "^4.4.6",
 		"tailwindcss": "^4.2.2",
 		"typescript": "^6.0.2",
-		"typescript-eslint": "^8.57.2",
+		"typescript-eslint": "^8.58.0",
 		"vite": "^8.0.3",
 		"vite-plugin-devtools-json": "^1.0.0",
 		"vitest": "^4.1.2",
 		"vitest-browser-svelte": "^2.1.0"
 	},
 	"dependencies": {
-		"@supabase/supabase-js": "^2.100.1",
+		"@supabase/supabase-js": "^2.101.0",
 		"nanoid": "^5.1.7",
 		"svelte-clerk": "^1.1.1"
 	},

@@ -4,9 +4,8 @@ export {};
 
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE_NAME = 'sylvan-web-v1';
+const CACHE_NAME = 'sylvan-web-v01';
 const STATIC_ASSETS = [
-	'/',
 	'/manifest.json',
 	'/icons/icon-72x72.svg',
 	'/icons/icon-96x96.svg',
@@ -37,25 +36,39 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-	if (event.request.method !== 'GET') return;
+  if (event.request.method !== 'GET') return;
 
-	const url = new URL(event.request.url);
+  const url = new URL(event.request.url);
 
-	if (url.origin === location.origin) {
-		event.respondWith(
-			caches.match(event.request).then((cached) => {
-				if (cached) return cached;
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => response)
+        .catch(() => caches.match('/'))
+    );
+    return;
+  }
 
-				return fetch(event.request).then((response) => {
-					if (response.ok && response.status === 200) {
-						const clone = response.clone();
-						caches.open(CACHE_NAME).then((cache) => {
-							cache.put(event.request, clone);
-						});
-					}
-					return response;
-				});
-			})
-		);
-	}
+  if (url.pathname.startsWith('/api')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  if (url.origin === location.origin) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, clone);
+            });
+          }
+          return response;
+        });
+      })
+    );
+  }
 });

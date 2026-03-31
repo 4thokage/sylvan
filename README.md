@@ -1,42 +1,97 @@
-# sv
+# Sylvan Web
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Magic: The Gathering collection and trade matching platform.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- **Collection Management**: Import and manage your Magic card collection
+- **Trade Matching**: Find trade partners based on your wishlist and collection
+- **Card Search**: Powered by Scryfall API for accurate card data
+- **User Authentication**: Secure sign-in via Clerk
+- **Dark/Light Theme**: Toggle between light, dark, and system themes
 
-```sh
-# create a new project
-npx sv create my-app
-```
+## Tech Stack
 
-To recreate this project with the same configuration:
+- **Framework**: SvelteKit with Svelte 5
+- **Styling**: Tailwind CSS v4
+- **Auth**: Clerk
+- **Database**: Supabase
+- **Cards Data**: Scryfall API
 
-```sh
-# recreate this project
-pnpm dlx sv@0.13.0 create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" tailwindcss="plugins:typography" devtools-json --install pnpm sylvan-web
-```
+## Getting Started
 
-## Developing
+### Prerequisites
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- Node.js (v20+)
+- pnpm (package manager)
+- Supabase project
+- Clerk account
 
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
+### Installation
 
 ```sh
-npm run build
+# Clone the repository
+git clone https://github.com/yourusername/sylvan-web.git
+cd sylvan-web
+
+# Install dependencies
+pnpm install
 ```
 
-You can preview the production build with `npm run preview`.
+### Environment Variables
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Create a `.env` file in the project root:
+
+```
+PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+```
+
+### Development
+
+```sh
+# Start development server
+pnpm dev
+```
+
+The app will be available at http://localhost:5173
+
+### Building
+
+```sh
+# Build for production
+pnpm build
+
+# Preview production build
+pnpm preview
+```
+
+## Available Commands
+
+| Command        | Description              |
+| -------------- | ------------------------ |
+| `pnpm dev`     | Start dev server         |
+| `pnpm build`   | Build for production     |
+| `pnpm preview` | Preview production build |
+| `pnpm check`   | Run TypeScript checks    |
+| `pnpm lint`    | Run ESLint and Prettier  |
+| `pnpm format`  | Format code              |
+| `pnpm test`    | Run unit tests           |
+
+## Project Structure
+
+```
+src/
+├── lib/
+│   ├── components/    # Reusable UI components
+│   ├── stores/        # Svelte stores (theme, etc.)
+│   ├── scryfall/     # Scryfall API client
+│   └── server/       # Server-side utilities
+├── routes/
+│   ├── +layout.svelte    # Main layout with nav
+│   ├── +page.svelte     # Home page
+│   ├── collection/      # Collection management
+│   └── trades/          # Trade matching
+└── app.html           # HTML template
+```

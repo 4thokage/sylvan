@@ -15,9 +15,9 @@ export default defineConfig({
 				includeVersionFile: true
 			},
 			manifest: {
-				name: 'Sylvan Web',
+				name: 'Sylvan',
 				short_name: 'Sylvan',
-				description: 'MTG Wishlist Manager',
+				description: 'MTG Toolbox',
 				theme_color: '#10b981',
 				background_color: '#09090b',
 				display: 'standalone',

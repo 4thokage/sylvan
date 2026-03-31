@@ -3,6 +3,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { Show, ClerkProvider, SignInButton, UserButton } from 'svelte-clerk';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let { children } = $props();
 </script>
@@ -32,7 +33,10 @@
 						Trades
 					</a>
 					<Show when="signed-out">
-						<SignInButton class="text-sm text-zinc-400 hover:text-zinc-200" />
+						<SignInButton
+							forceRedirectUrl="/trades"
+							class="text-sm text-emerald-400 hover:text-zinc-200"
+						/>
 					</Show>
 					<Show when="signed-in">
 						<UserButton />

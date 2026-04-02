@@ -57,3 +57,26 @@ export interface WorkerResponse {
 	confidence?: number;
 	error?: string;
 }
+
+export interface Detection {
+	class: string;
+	confidence: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	videoWidth: number;
+	videoHeight: number;
+}
+
+export interface DetectorConfig {
+	apiKey: string;
+	modelId?: string;
+}
+
+export interface TrackedDetection {
+	detection: Detection;
+	stableFrames: number;
+	lastPositions: Array<{ x: number; y: number }>;
+	captured: boolean;
+}

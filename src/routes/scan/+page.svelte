@@ -2,10 +2,11 @@
 	import { useClerkContext } from 'svelte-clerk/client';
 	import { supabase } from '$lib/supabase-client';
 	import { getCards, type WishlistCard } from '$lib/scryfall/api';
-	import CardScanner from '$lib/components/CardScanner.svelte';
+	import ScannerView from '$lib/components/ScannerView.svelte';
+	import { scannedCards } from '$lib/scanner/store';
 	import type { ScannedCard } from '$lib/scanner/types';
 
-	let scannedCards = $state<ScannedCard[]>([]);
+	let detectedCardsValue = $state<ScannedCard[]>([]);
 	let isSignedIn = $state(false);
 	let currentUserId = $state<string | null>(null);
 	let isSaving = $state(false);
@@ -21,14 +22,18 @@
 		currentUserId = userId;
 	});
 
+	$effect(() => {
+		detectedCardsValue = $scannedCards;
+	});
+
 	async function saveToCollection() {
-		if (!currentUserId || scannedCards.length === 0 || isSaving) return;
+		if (!currentUserId || detectedCardsValue.length === 0 || isSaving) return;
 
 		isSaving = true;
 		saveMessage = null;
 
 		try {
-			const cardsToSave = scannedCards.map((card) => ({
+			const cardsToSave = detectedCardsValue.map((card) => ({
 				name: card.name,
 				qty: card.qty
 			}));
@@ -96,7 +101,7 @@
 	}
 
 	function handleCardsChange(cards: ScannedCard[]) {
-		scannedCards = cards;
+		detectedCardsValue = cards;
 	}
 </script>
 
@@ -106,22 +111,20 @@
 </svelte:head>
 
 <div class="flex h-[calc(100vh-73px)] flex-col">
-	<!-- Scanner Component -->
 	<div class="flex-1">
-		<CardScanner bind:scannedCards onCardsChange={handleCardsChange} />
+		<ScannerView onCardsChange={handleCardsChange} />
 	</div>
 
-	<!-- Scanned Cards Summary Bar (only show when cards exist) -->
-	{#if scannedCards.length > 0}
+	{#if detectedCardsValue.length > 0}
 		<div class="border-t border-zinc-800 bg-zinc-900 p-4">
 			<div class="mx-auto flex max-w-7xl items-center justify-between">
 				<div class="flex items-center gap-4">
 					<div class="flex items-center gap-2">
 						<span class="font-medium text-white">
-							{scannedCards.reduce((sum, c) => sum + c.qty, 0)} cards
+							{detectedCardsValue.reduce((sum, c) => sum + c.qty, 0)} cards
 						</span>
 						<span class="text-sm text-zinc-500">
-							({scannedCards.length} unique)
+							({detectedCardsValue.length} unique)
 						</span>
 					</div>
 				</div>

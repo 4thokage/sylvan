@@ -14,6 +14,9 @@ export default defineConfig({
 			kit: {
 				includeVersionFile: true
 			},
+			workbox: {
+				maximumFileSizeToCacheInBytes: 12 * 1024 * 1024
+			},
 			manifest: {
 				name: 'Sylvan',
 				short_name: 'Sylvan',

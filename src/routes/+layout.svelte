@@ -52,5 +52,18 @@
 			</div>
 		</header>
 		{@render children()}
+		<footer class="border-t border-zinc-800 px-6 py-4">
+			<div class="mx-auto max-w-7xl">
+				<div class="flex items-center justify-center gap-4 text-sm text-zinc-400">
+					<a href="/terms" class="hover:text-zinc-200" data-sveltekit-preload-data
+						>Terms of Service</a
+					>
+					<span class="text-zinc-600">•</span>
+					<a href="/privacy" class="hover:text-zinc-200" data-sveltekit-preload-data
+						>Privacy Policy</a
+					>
+				</div>
+			</div>
+		</footer>
 	</div>
 </ClerkProvider>

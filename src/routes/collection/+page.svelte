@@ -40,6 +40,7 @@
 			manaCost: c.manaCost,
 			prices: c.prices as WishlistCard['prices'],
 			oracleId: c.oracleId,
+			cardPrintingId: c.cardPrintingId || null,
 			set: c.set,
 			collectorNumber: c.collectorNumber,
 			condition: 'NM',
@@ -98,12 +99,23 @@
 						isTradeable: c.isTradeable
 					})
 				);
-				if (raw.length > 0) {
+				// Dedupe by cardPrintingId (merge quantities) to handle legacy duplicates
+				const dedupedRaw: Record<string, (typeof raw)[0]> = {};
+				for (const r of raw) {
+					const key = r.cardPrintingId || r.name;
+					if (dedupedRaw[key]) {
+						dedupedRaw[key].qty += r.qty;
+					} else {
+						dedupedRaw[key] = { ...r };
+					}
+				}
+				const uniqueRaw = Object.values(dedupedRaw);
+				if (uniqueRaw.length > 0) {
 					const lookupRes = await fetch('/api/cards/lookup', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({
-							cards: raw,
+							cards: uniqueRaw,
 							game: selectedGame
 						})
 					});
@@ -111,7 +123,7 @@
 					if (lookupData.success && lookupData.data?.cards) {
 						collectionCards = lookupData.data.cards.map((c: LookupResult, i: number) => ({
 							...makeCardDefaults(c),
-							...raw[i]
+							...uniqueRaw[i]
 						}));
 					}
 				}
@@ -208,19 +220,21 @@
 					isFoil: parsed[i]?.foil || false
 				}));
 
-				// Merge into existing collection
+				// Merge into existing collection by cardPrintingId
 				const existingMap: Record<string, WishlistCard> = {};
 				for (const c of collectionCards) {
-					existingMap[c.name] = c;
+					const key = c.cardPrintingId || c.name;
+					existingMap[key] = c;
 				}
 
 				for (const newCard of newCards) {
-					const existing = existingMap[newCard.name];
+					const key = newCard.cardPrintingId || newCard.name;
+					const existing = existingMap[key];
 					if (existing) {
 						existing.qty += newCard.qty;
-						existingMap[newCard.name] = existing;
+						existingMap[key] = existing;
 					} else {
-						existingMap[newCard.name] = newCard;
+						existingMap[key] = newCard;
 					}
 				}
 
@@ -256,14 +270,22 @@
 	}
 
 	function handleSaveCard(updated: WishlistCard) {
-		collectionCards = collectionCards.map((c) => (c.name === updated.name ? updated : c));
+		const key = updated.cardPrintingId || updated.name;
+		collectionCards = collectionCards.map((c) => {
+			const cKey = c.cardPrintingId || c.name;
+			return cKey === key ? updated : c;
+		});
 		isDrawerOpen = false;
 		selectedCard = null;
 	}
 
 	function handleRemoveCard() {
 		if (!selectedCard) return;
-		collectionCards = collectionCards.filter((c) => c.name !== selectedCard!.name);
+		const key = selectedCard.cardPrintingId || selectedCard.name;
+		collectionCards = collectionCards.filter((c) => {
+			const cKey = c.cardPrintingId || c.name;
+			return cKey !== key;
+		});
 		isDrawerOpen = false;
 		selectedCard = null;
 	}

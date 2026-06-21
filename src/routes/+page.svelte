@@ -42,6 +42,7 @@
 			manaCost: c.manaCost,
 			prices: c.prices as WishlistCard['prices'],
 			oracleId: c.oracleId,
+			cardPrintingId: c.cardPrintingId || null,
 			set: c.set,
 			collectorNumber: c.collectorNumber,
 			condition: 'NM',

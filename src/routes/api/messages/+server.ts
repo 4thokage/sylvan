@@ -23,7 +23,7 @@ export const GET: RequestHandler = async (event) => {
 
 	let query = supabase
 		.from('messages')
-		.select('*, sender:sender_id(id, display_name, username)')
+		.select('*, sender:sender_id(id, username)')
 		.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
 		.order('created_at', { ascending: false })
 		.limit(100);

@@ -4,9 +4,7 @@
 	interface AdminData {
 		users: Array<{
 			id: string;
-			display_name: string | null;
 			username: string | null;
-			is_public: boolean;
 			is_admin: boolean;
 			created_at: string;
 		}>;
@@ -95,10 +93,9 @@
 					{#each adminData.users as u}
 						<div class="rounded border border-border bg-surface-raised/50 p-3 text-sm">
 							<div class="flex items-center justify-between">
-								<span class="text-text-soft">{u.display_name || u.username || 'Unknown'}</span>
+								<span class="text-text-soft">{u.username || 'Unknown'}</span>
 								<div class="flex gap-2">
 									{#if u.is_admin}<span class="text-xs text-accent">Admin</span>{/if}
-									{#if u.is_public}<span class="text-xs text-text-muted">Public</span>{/if}
 								</div>
 							</div>
 							<p class="text-xs text-text-muted">{new Date(u.created_at).toLocaleDateString()}</p>

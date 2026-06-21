@@ -7,11 +7,7 @@ export interface UserRow {
 	id: string;
 	clerk_user_id: string;
 	username: string;
-	display_name: string | null;
-	avatar_url: string | null;
-	bio: string | null;
-	location: string | null;
-	is_public: boolean;
+	is_admin: boolean;
 	created_at: string;
 	updated_at: string;
 }
@@ -91,8 +87,8 @@ export interface TradeRow {
 }
 
 export interface TradeWithProfiles extends TradeRow {
-	proposer: { id: string; display_name: string | null; username: string | null } | null;
-	recipient: { id: string; display_name: string | null; username: string | null } | null;
+	proposer: { id: string; username: string | null } | null;
+	recipient: { id: string; username: string | null } | null;
 }
 
 export interface TradeOfferRow {

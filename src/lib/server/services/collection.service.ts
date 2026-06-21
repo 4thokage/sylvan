@@ -26,14 +26,14 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		.in('id', printingIds);
 
 	const printingMap = new Map<string, { imageUrl: string | null; cardName: string }>();
-	for (const p of (printings || []) as Array<{
+	for (const p of (printings || []) as unknown as Array<{
 		id: string;
 		image_url: string | null;
-		cards: Array<{ name: string }> | null;
+		cards: { name: string } | null;
 	}>) {
 		printingMap.set(p.id, {
 			imageUrl: p.image_url || null,
-			cardName: p.cards?.[0]?.name || 'Unknown'
+			cardName: p.cards?.name || 'Unknown'
 		});
 	}
 

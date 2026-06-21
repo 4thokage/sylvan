@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
 	const { data: ratings } = await supabase
 		.from('trade_ratings')
-		.select('*, rater:rater_id(id, display_name, username)')
+		.select('*, rater:rater_id(id, username)')
 		.eq('rated_id', userId)
 		.order('created_at', { ascending: false })
 		.limit(50);

@@ -30,11 +30,7 @@ export const collectionRepository: CollectionRepository = {
 	},
 
 	async getPublicCollection(userId: string, gameSlug?: string) {
-		let query = supabase
-			.from('user_cards')
-			.select('*, users!inner(is_public)')
-			.eq('user_id', userId)
-			.eq('users.is_public', true);
+		let query = supabase.from('user_cards').select('*').eq('user_id', userId);
 
 		if (gameSlug) {
 			const gameId = await this.getGameId(gameSlug);

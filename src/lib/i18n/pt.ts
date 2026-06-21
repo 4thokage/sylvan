@@ -6,11 +6,9 @@ export const pt: Translations = {
 		scan: 'Escanear',
 		collection: 'Coleção',
 		trades: 'Trocas',
-		profile: 'Perfil',
-		notifications: 'Notificações',
-		messages: 'Mensagens',
 		signIn: 'Entrar',
-		signOut: 'Sair'
+		signOut: 'Sair',
+		inbox: 'Caixa de Entrada'
 	},
 	home: {
 		title: 'Criar Lista de Desejos',
@@ -80,26 +78,18 @@ export const pt: Translations = {
 		createWishlist: 'Crie uma lista de desejos para ver sugestões de troca!',
 		wishlistOf: ' Lista de Desejos'
 	},
-	profile: {
-		title: 'Perfil',
-		displayName: 'Nome de Exibição',
-		username: 'Usuário',
-		bio: 'Biografia',
-		location: 'Localização',
-		save: 'Salvar',
-		saving: 'Salvando...',
-		publicProfile: 'Perfil Público',
-		publicDescription: 'Permitir que outros vejam seu perfil e coleção'
+	inbox: {
+		title: 'Caixa de Entrada',
+		unread: 'não lidas',
+		refresh: 'Atualizar',
+		notifications: 'Notificações',
+		messages: 'Mensagens'
 	},
 	notifications: {
-		title: 'Notificações',
-		unread: 'não lidas',
 		markAllRead: 'Marcar todas como lidas',
 		empty: 'Nenhuma notificação ainda'
 	},
 	messages: {
-		title: 'Mensagens',
-		refresh: 'Atualizar',
 		empty: 'Nenhuma mensagem ainda',
 		you: 'Você',
 		viewTrade: 'Ver troca'

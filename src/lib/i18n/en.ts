@@ -4,11 +4,9 @@ export const en = {
 		scan: 'Scan',
 		collection: 'Collection',
 		trades: 'Trades',
-		profile: 'Profile',
-		notifications: 'Notifications',
-		messages: 'Messages',
 		signIn: 'Sign In',
-		signOut: 'Sign Out'
+		signOut: 'Sign Out',
+		inbox: 'Inbox'
 	},
 	home: {
 		title: 'Card Wishlist Creator',
@@ -78,26 +76,18 @@ export const en = {
 		createWishlist: 'Create a wishlist to see trade suggestions!',
 		wishlistOf: "'s Wishlist"
 	},
-	profile: {
-		title: 'Profile',
-		displayName: 'Display Name',
-		username: 'Username',
-		bio: 'Bio',
-		location: 'Location',
-		save: 'Save',
-		saving: 'Saving...',
-		publicProfile: 'Public Profile',
-		publicDescription: 'Allow others to view your profile and collection'
+	inbox: {
+		title: 'Inbox',
+		unread: 'unread',
+		refresh: 'Refresh',
+		notifications: 'Notifications',
+		messages: 'Messages'
 	},
 	notifications: {
-		title: 'Notifications',
-		unread: 'unread',
 		markAllRead: 'Mark all read',
 		empty: 'No notifications yet'
 	},
 	messages: {
-		title: 'Messages',
-		refresh: 'Refresh',
 		empty: 'No messages yet',
 		you: 'You',
 		viewTrade: 'View trade'

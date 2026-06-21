@@ -11,7 +11,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	if (clerkUserId) {
 		const { data: existing, error: selectError } = await supabase
 			.from('users')
-			.select('id, username, display_name, is_admin')
+			.select('id, username, is_admin')
 			.eq('clerk_user_id', clerkUserId)
 			.single();
 
@@ -27,11 +27,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				.from('users')
 				.insert({
 					clerk_user_id: clerkUserId,
-					username: suggestedName,
-					display_name: null,
-					is_public: false
+					username: suggestedName
 				})
-				.select('id, username, display_name, is_admin')
+				.select('id, username, is_admin')
 				.single();
 
 			if (insertError) {

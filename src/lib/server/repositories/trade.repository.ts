@@ -88,8 +88,8 @@ export const tradeRepository: TradeRepository = {
 			.select(
 				`
         *,
-        proposer:proposer_id(id, display_name, username),
-        recipient:recipient_id(id, display_name, username)
+        proposer:proposer_id(id, username),
+        recipient:recipient_id(id, username)
       `
 			)
 			.or(`proposer_id.eq.${userDbId},recipient_id.eq.${userDbId}`)

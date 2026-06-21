@@ -19,7 +19,7 @@ export const GET: RequestHandler = async (event) => {
 	const [usersResult, tradesResult, cardsResult] = await Promise.all([
 		supabase
 			.from('users')
-			.select('id, display_name, username, is_public, is_admin, created_at')
+			.select('id, username, is_admin, created_at')
 			.order('created_at', { ascending: false })
 			.limit(100),
 		supabase

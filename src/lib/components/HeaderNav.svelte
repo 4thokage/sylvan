@@ -25,25 +25,10 @@
 	<a href="/trades" class="text-sm text-text-dim hover:text-text" data-sveltekit-preload-data
 		>{t($localeStore, 'nav.trades')}</a
 	>
-	<a href="/messages" class="text-sm text-text-dim hover:text-text" data-sveltekit-preload-data
-		>{t($localeStore, 'nav.messages')}</a
-	>
-	{#if isSignedIn}
-		<a href="/profile" class="text-sm text-text-dim hover:text-text" data-sveltekit-preload-data
-			>{t($localeStore, 'nav.profile')}</a
+	{#if isAdmin}
+		<a href="/admin" class="text-sm text-amber-400 hover:text-amber-300" data-sveltekit-preload-data
+			>Admin</a
 		>
-		<a
-			href="/notifications"
-			class="text-sm text-text-dim hover:text-text"
-			data-sveltekit-preload-data>{t($localeStore, 'nav.notifications')}</a
-		>
-		{#if isAdmin}
-			<a
-				href="/admin"
-				class="text-sm text-amber-400 hover:text-amber-300"
-				data-sveltekit-preload-data>Admin</a
-			>
-		{/if}
 	{/if}
 </nav>
 
@@ -51,6 +36,21 @@
 	<LocaleToggle />
 	<ThemeToggle />
 	{#if isSignedIn}
+		<a
+			href="/inbox"
+			class="text-sm text-text-dim hover:text-text"
+			data-sveltekit-preload-data
+			aria-label="Inbox"
+		>
+			<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414a1 1 0 00-.707-.293H4"
+				/>
+			</svg>
+		</a>
 		<UserButton />
 	{:else}
 		<SignInButton
@@ -116,7 +116,7 @@
 		</a>
 		{#if isSignedIn}
 			<a
-				href="/profile"
+				href="/inbox"
 				class="flex flex-col items-center gap-0.5 px-3 text-text-dim hover:text-text"
 			>
 				<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -124,10 +124,10 @@
 						stroke-linecap="round"
 						stroke-linejoin="round"
 						stroke-width="2"
-						d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+						d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414a1 1 0 00-.707-.293H4"
 					/>
 				</svg>
-				<span class="text-[10px]">{t($localeStore, 'nav.profile')}</span>
+				<span class="text-[10px]">{t($localeStore, 'nav.inbox')}</span>
 			</a>
 		{/if}
 	</div>

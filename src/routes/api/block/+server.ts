@@ -24,7 +24,7 @@ export const GET: RequestHandler = async (event) => {
 
 	const { data: blocked } = await supabase
 		.from('blocked_users')
-		.select('blocked_id, blocked:blocked_id(id, display_name, username)')
+		.select('blocked_id, blocked:blocked_id(id, username)')
 		.eq('blocker_id', user.id);
 
 	return json({ success: true, data: { blocked: blocked || [] } });

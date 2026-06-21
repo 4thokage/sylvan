@@ -20,8 +20,8 @@
 		proposer_note: string | null;
 		recipient_note: string | null;
 		created_at: string;
-		proposer: { id: string; display_name: string | null; username: string | null } | null;
-		recipient: { id: string; display_name: string | null; username: string | null } | null;
+		proposer: { id: string; username: string | null } | null;
+		recipient: { id: string; username: string | null } | null;
 	}
 
 	let { data } = $props();
@@ -93,7 +93,7 @@
 	function getOtherUserName(trade: Trade): string {
 		const isProposer = trade.proposer_id === currentUserId;
 		const other = isProposer ? trade.recipient : trade.proposer;
-		return other?.display_name || other?.username || 'Unknown';
+		return other?.username || 'Unknown';
 	}
 
 	function getStatusBadge(status: string): string {

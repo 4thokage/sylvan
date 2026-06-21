@@ -14,7 +14,7 @@ export const userRepository: UserRepository = {
 	async ensureUser(clerkUserId: string) {
 		const { data: existing, error: selectError } = await supabase
 			.from('users')
-			.select('id, username, display_name')
+			.select('id, username')
 			.eq('clerk_user_id', clerkUserId)
 			.single();
 
@@ -27,11 +27,9 @@ export const userRepository: UserRepository = {
 			.from('users')
 			.insert({
 				clerk_user_id: clerkUserId,
-				username: suggestedName,
-				display_name: null,
-				is_public: false
+				username: suggestedName
 			})
-			.select('id, username, display_name')
+			.select('id, username')
 			.single();
 
 		if (insertError) throw new Error(insertError.message);
@@ -52,9 +50,8 @@ export const userRepository: UserRepository = {
 	async getPublicProfile(userId: string) {
 		const { data: user, error } = await supabase
 			.from('users')
-			.select('id, username, display_name, avatar_url, bio, location, created_at')
+			.select('id, username, created_at')
 			.eq('id', userId)
-			.eq('is_public', true)
 			.single();
 
 		if (error) throw new Error(error.message);
@@ -62,14 +59,7 @@ export const userRepository: UserRepository = {
 	},
 
 	async updateProfile(clerkUserId: string, updates: Record<string, unknown>) {
-		const allowed = [
-			'display_name',
-			'bio',
-			'location',
-			'shipping_prefs',
-			'is_public',
-			'avatar_url'
-		];
+		const allowed = ['username'] as const;
 		const safe: Record<string, unknown> = {};
 
 		for (const key of allowed) {

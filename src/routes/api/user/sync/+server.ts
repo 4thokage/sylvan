@@ -14,7 +14,7 @@ export const POST: RequestHandler = async (event) => {
 	try {
 		const { data: existing } = await supabase
 			.from('users')
-			.select('id, username, display_name, is_admin')
+			.select('id, username, is_admin')
 			.eq('clerk_user_id', clerkUserId)
 			.single();
 
@@ -28,11 +28,9 @@ export const POST: RequestHandler = async (event) => {
 			.from('users')
 			.insert({
 				clerk_user_id: clerkUserId,
-				username: suggestedName,
-				display_name: null,
-				is_public: false
+				username: suggestedName
 			})
-			.select('id, username, display_name, is_admin')
+			.select('id, username, is_admin')
 			.single();
 
 		if (error) {

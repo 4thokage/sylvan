@@ -10,7 +10,6 @@ declare global {
 			user?: {
 				id: string;
 				username: string;
-				display_name: string | null;
 				is_admin: boolean;
 			} | null;
 		}

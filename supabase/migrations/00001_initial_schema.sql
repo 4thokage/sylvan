@@ -23,12 +23,6 @@ create table if not exists public.users (
   id                uuid primary key default gen_random_uuid(),
   clerk_user_id     text unique,
   username          text unique,
-  display_name      text,
-  avatar_url        text,
-  bio               text,
-  location          text,
-  shipping_prefs    jsonb default '{}'::jsonb,
-  is_public         boolean default false,
   is_admin          boolean default false,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now()
@@ -266,10 +260,10 @@ as $$
   select id from public.users where clerk_user_id = auth.jwt() ->> 'sub';
 $$;
 
--- Users: can read public profiles; can write own profile
-create policy "Users are publicly viewable if is_public"
+-- Users: all public read; can write own
+create policy "Users are publicly readable"
   on public.users for select
-  using (is_public = true or current_user_id() = id);
+  using (true);
 
 create policy "Users can insert own profile"
   on public.users for insert
@@ -289,14 +283,14 @@ create policy "Card printings are publicly readable"
   on public.card_printings for select
   using (true);
 
--- User Cards: owner can CRUD; public can read if user's profile is public
+-- User Cards: owner can CRUD; public can read all
 create policy "User cards visible to owner"
   on public.user_cards for select
   using (
     user_id = current_user_id()
     or exists (
       select 1 from public.users
-      where id = user_id and is_public = true
+      where id = user_id
     )
   );
 

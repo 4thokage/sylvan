@@ -101,3 +101,15 @@ export async function listPublicWishlists(limit = 100, offset = 0, repo?: Wishli
 	const r = repo || defaultRepo;
 	return r.listPublicWishlists(limit, offset);
 }
+
+export async function listUserWishlists(
+	clerkUserId: string,
+	limit = 50,
+	offset = 0,
+	repo?: WishlistRepository
+) {
+	const r = repo || defaultRepo;
+	const userId = await r.getUserIdByClerkId(clerkUserId);
+	if (!userId) return [];
+	return r.listUserWishlists(userId, limit, offset);
+}

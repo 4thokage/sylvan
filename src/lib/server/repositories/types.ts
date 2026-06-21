@@ -199,6 +199,7 @@ export interface WishlistRepository {
 	deleteWishlistByFingerprint(id: string, fingerprint: string): Promise<void>;
 	getWishlistFingerprint(id: string): Promise<string | null>;
 	listPublicWishlists(limit?: number, offset?: number): Promise<Array<WishlistRow>>;
+	listUserWishlists(userId: string, limit?: number, offset?: number): Promise<Array<WishlistRow>>;
 }
 
 export interface UserRepository {

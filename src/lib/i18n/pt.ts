@@ -2,18 +2,23 @@ import type { Translations } from './en';
 
 export const pt: Translations = {
 	nav: {
-		create: 'Criar',
-		scan: 'Escanear',
-		collection: 'Coleção',
+		wants: 'Quer',
+		haves: 'Tem',
 		trades: 'Trocas',
+		tools: 'Ferramentas',
 		signIn: 'Entrar',
 		signOut: 'Sair',
 		inbox: 'Caixa de Entrada'
 	},
-	home: {
-		title: 'Criar Lista de Desejos',
-		subtitle: 'Adicione cartas para encontrar parceiros de troca',
-		cardPlaceholder: '4 Lightning Bolt\n4 Counterspell\n2 Sol Ring',
+	wants: {
+		title: 'Meus Quer',
+		subtitle: 'Cartas que você procura',
+		newWishlist: 'Nova Lista',
+		myWishlists: 'Minhas Listas',
+		noWishlists: 'Nenhuma lista ainda',
+		created: 'Criada',
+		cards: 'cartas',
+		cardPlaceholder: '4 Lightning Bolt (CLB) 785\n4 Counterspell\n2 Sol Ring\n1 Thespian Stage',
 		gameLabel: 'Jogo',
 		save: 'Salvar Lista',
 		saving: 'Salvando...',
@@ -31,8 +36,9 @@ export const pt: Translations = {
 		imagesUnavailable: 'Imagens podem não estar disponíveis, mas você ainda pode salvar sua lista.',
 		typeToPreview: 'Cartas aparecerão aqui enquanto você digita'
 	},
-	collection: {
-		title: 'Minha Coleção',
+	haves: {
+		title: 'Meus Tem',
+		subtitle: 'Cartas que você possui',
 		unique: 'únicas',
 		total: 'total',
 		game: 'Jogo',
@@ -43,7 +49,7 @@ export const pt: Translations = {
 		saving: 'Salvando...',
 		clear: 'Limpar',
 		empty: 'Sua coleção está vazia',
-		signInRequired: 'Entre para gerenciar sua coleção',
+		signInRequired: 'Entre para gerenciar seus tem',
 		signInDescription: 'Você precisa estar logado para importar e gerenciar suas cartas.',
 		importFormat: {
 			text: 'Texto Simples',
@@ -78,6 +84,44 @@ export const pt: Translations = {
 		createWishlist: 'Crie uma lista de desejos para ver sugestões de troca!',
 		wishlistOf: ' Lista de Desejos'
 	},
+	tools: {
+		title: 'Ferramentas',
+		subtitle: 'Utilitários para trocadores',
+		scan: {
+			title: 'Scanner de Cartas',
+			description: 'Escaneie cartas com sua câmera'
+		},
+		value: {
+			title: 'Valor da Coleção',
+			description: 'Calcule o valor total da sua coleção',
+			inputLabel: 'Cole sua coleção',
+			totalValue: 'Valor Total',
+			byGame: 'Por Jogo',
+			topCards: 'Top 10 Cartas',
+			noPrices: 'Sem dados de preço disponíveis'
+		},
+		fairness: {
+			title: 'Justiça da Troca',
+			description: 'Compare os dois lados de uma troca',
+			sideA: 'Lado A',
+			sideB: 'Lado B',
+			totalA: 'Total A',
+			totalB: 'Total B',
+			difference: 'Diferença',
+			fairnessScore: 'Pontuação de Justiça',
+			balanced: 'Equilibrado',
+			favorsA: 'Favorece Lado A',
+			favorsB: 'Favorece Lado B'
+		},
+		life: {
+			title: 'Contador de Vida',
+			description: 'Contador de vida rápido para MTG',
+			player1: 'Jogador 1',
+			player2: 'Jogador 2',
+			reset: 'Reiniciar',
+			startingLife: 'Vida Inicial'
+		}
+	},
 	inbox: {
 		title: 'Caixa de Entrada',
 		unread: 'não lidas',
@@ -93,6 +137,16 @@ export const pt: Translations = {
 		empty: 'Nenhuma mensagem ainda',
 		you: 'Você',
 		viewTrade: 'Ver troca'
+	},
+	profile: {
+		bio: 'Biografia',
+		location: 'Localização',
+		country: 'País',
+		save: 'Salvar',
+		saving: 'Salvando...',
+		updated: 'Perfil atualizado!',
+		bioPlaceholder: 'Conte aos outros trocadores sobre você...',
+		locationPlaceholder: 'Ajuda a encontrar parceiros de troca locais'
 	},
 	common: {
 		loading: 'Carregando...',

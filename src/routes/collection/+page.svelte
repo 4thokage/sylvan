@@ -301,15 +301,15 @@
 </script>
 
 <svelte:head>
-	<title>Sylvan - {t($localeStore, 'collection.title')}</title>
+	<title>Sylvan - {t($localeStore, 'haves.title')}</title>
 </svelte:head>
 
 {#if !isSignedIn}
 	<div class="flex min-h-[60vh] flex-col items-center justify-center">
 		<div class="text-center">
-			<h2 class="mb-4 text-2xl font-semibold">{t($localeStore, 'collection.signInRequired')}</h2>
+			<h2 class="mb-4 text-2xl font-semibold">{t($localeStore, 'haves.signInRequired')}</h2>
 			<p class="mb-6 text-text-dim">
-				{t($localeStore, 'collection.signInDescription')}
+				{t($localeStore, 'haves.signInDescription')}
 			</p>
 		</div>
 	</div>
@@ -318,12 +318,12 @@
 		<div class="mb-6 flex items-center justify-between">
 			<div>
 				<h1 class="text-2xl font-semibold tracking-tight text-accent">
-					{t($localeStore, 'collection.title')}
+					{t($localeStore, 'haves.title')}
 				</h1>
 				<p class="mt-1 text-sm text-text-muted">
 					{collectionCards.length}
-					{t($localeStore, 'collection.unique')} · {totalCards}
-					{t($localeStore, 'collection.total')}
+					{t($localeStore, 'haves.unique')} · {totalCards}
+					{t($localeStore, 'haves.total')}
 				</p>
 			</div>
 			<div class="flex gap-2">
@@ -332,26 +332,26 @@
 					disabled={collectionCards.length === 0}
 					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card"
 				>
-					{t($localeStore, 'collection.export')}
+					{t($localeStore, 'haves.export')}
 				</button>
 				<button
 					onclick={clearCollection}
 					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card"
 				>
-					{t($localeStore, 'collection.clear')}
+					{t($localeStore, 'haves.clear')}
 				</button>
 				<button
 					onclick={saveCollection}
 					disabled={isSaving || collectionCards.length === 0}
 					class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
 				>
-					{isSaving ? t($localeStore, 'collection.saving') : t($localeStore, 'collection.save')}
+					{isSaving ? t($localeStore, 'haves.saving') : t($localeStore, 'haves.save')}
 				</button>
 			</div>
 		</div>
 
 		<div class="mb-6 flex items-center gap-4">
-			<span class="text-sm font-medium text-text-dim">{t($localeStore, 'collection.game')}:</span>
+			<span class="text-sm font-medium text-text-dim">{t($localeStore, 'haves.game')}:</span>
 			<div class="flex gap-2">
 				{#each games as game (game.id)}
 					<button
@@ -379,7 +379,7 @@
 		<div class="grid gap-8 lg:grid-cols-2">
 			<div class="space-y-4">
 				<label for="card-list" class="block text-sm font-medium text-text-dim">
-					{t($localeStore, 'collection.addCards')}
+					{t($localeStore, 'haves.addCards')}
 				</label>
 				<textarea
 					id="card-list"
@@ -390,18 +390,15 @@
 				<div class="flex items-center justify-between">
 					<p class="text-sm text-text-muted">
 						{parsedCards.length}
-						{t($localeStore, 'collection.unique')} · {parsedCards.reduce(
-							(sum, c) => sum + c.qty,
-							0
-						)}
-						{t($localeStore, 'collection.total')}
+						{t($localeStore, 'haves.unique')} · {parsedCards.reduce((sum, c) => sum + c.qty, 0)}
+						{t($localeStore, 'haves.total')}
 					</p>
 					<button
 						onclick={handleAdd}
 						disabled={!input.trim() || isLoading}
 						class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
 					>
-						{isLoading ? t($localeStore, 'common.loading') : t($localeStore, 'collection.add')}
+						{isLoading ? t($localeStore, 'common.loading') : t($localeStore, 'haves.add')}
 					</button>
 				</div>
 			</div>
@@ -409,11 +406,11 @@
 			<div class="space-y-4">
 				<div class="flex items-center justify-between">
 					<span class="block text-sm font-medium text-text-dim"
-						>{t($localeStore, 'collection.title')}</span
+						>{t($localeStore, 'haves.title')}</span
 					>
 					<span class="text-xs text-text-muted">
 						{collectionCards.length > 0
-							? `${collectionCards.length} ${t($localeStore, 'collection.unique')}`
+							? `${collectionCards.length} ${t($localeStore, 'haves.unique')}`
 							: ''}
 					</span>
 				</div>
@@ -436,7 +433,7 @@
 					<div
 						class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"
 					>
-						<p class="text-sm text-text-muted">{t($localeStore, 'collection.empty')}</p>
+						<p class="text-sm text-text-muted">{t($localeStore, 'haves.empty')}</p>
 					</div>
 				{/if}
 			</div>

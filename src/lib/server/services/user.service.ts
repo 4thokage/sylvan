@@ -11,11 +11,6 @@ export async function getUserProfile(clerkUserId: string, repo?: UserRepository)
 	return r.getUserProfile(clerkUserId);
 }
 
-export async function getPublicProfile(userId: string, repo?: UserRepository) {
-	const r = repo || defaultRepo;
-	return r.getPublicProfile(userId);
-}
-
 export async function updateProfile(
 	clerkUserId: string,
 	updates: Record<string, unknown>,

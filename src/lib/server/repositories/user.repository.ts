@@ -47,17 +47,6 @@ export const userRepository: UserRepository = {
 		return user as UserRow | null;
 	},
 
-	async getPublicProfile(userId: string) {
-		const { data: user, error } = await supabase
-			.from('users')
-			.select('id, username, created_at')
-			.eq('id', userId)
-			.single();
-
-		if (error) throw new Error(error.message);
-		return user as Partial<UserRow> | null;
-	},
-
 	async updateProfile(clerkUserId: string, updates: Record<string, unknown>) {
 		const allowed = ['username'] as const;
 		const safe: Record<string, unknown> = {};

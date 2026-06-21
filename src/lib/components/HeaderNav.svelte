@@ -3,6 +3,9 @@
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleToggle from './LocaleToggle.svelte';
 	import { getLocaleStore, t } from '$lib/i18n';
+	import ProfileInfoPage from './ProfileInfoPage.svelte';
+	import InboxIcon from './icons/InboxIcon.svelte';
+	import ProfileIcon from './icons/ProfileIcon.svelte';
 
 	let { data }: { data: { user?: { is_admin?: boolean } | null } } = $props();
 
@@ -36,22 +39,18 @@
 	<LocaleToggle />
 	<ThemeToggle />
 	{#if isSignedIn}
-		<a
-			href="/inbox"
-			class="text-sm text-text-dim hover:text-text"
-			data-sveltekit-preload-data
-			aria-label="Inbox"
-		>
-			<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414a1 1 0 00-.707-.293H4"
-				/>
-			</svg>
-		</a>
-		<UserButton />
+		<UserButton>
+			<UserButton.MenuItems>
+				<UserButton.Link label={t($localeStore, 'nav.inbox')} href="/inbox" labelIcon={InboxIcon} />
+				<UserButton.Action label="manageAccount" />
+				<UserButton.Action label="signOut" />
+			</UserButton.MenuItems>
+			<UserButton.UserProfilePage label="Profile Info" url="profile" labelIcon={ProfileIcon}>
+				{#snippet children()}
+					<ProfileInfoPage />
+				{/snippet}
+			</UserButton.UserProfilePage>
+		</UserButton>
 	{:else}
 		<SignInButton
 			forceRedirectUrl="/trades"

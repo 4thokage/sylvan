@@ -205,6 +205,5 @@ export interface UserRepository {
 	getUserIdByClerkId(clerkUserId: string): Promise<string | null>;
 	ensureUser(clerkUserId: string): Promise<UserRow>;
 	getUserProfile(clerkUserId: string): Promise<UserRow | null>;
-	getPublicProfile(userId: string): Promise<Partial<UserRow> | null>;
 	updateProfile(clerkUserId: string, updates: Record<string, unknown>): Promise<UserRow | null>;
 }

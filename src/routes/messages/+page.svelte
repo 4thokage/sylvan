@@ -45,7 +45,9 @@
 	async function markRead(msgId: string) {
 		try {
 			await fetch(`/api/messages/${msgId}`, { method: 'PATCH' });
-			messages = messages.map(m => m.id === msgId ? { ...m, read_at: new Date().toISOString() } : m);
+			messages = messages.map((m) =>
+				m.id === msgId ? { ...m, read_at: new Date().toISOString() } : m
+			);
 		} catch {
 			// ignore
 		}
@@ -69,7 +71,9 @@
 
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
-			<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			<div
+				class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+			></div>
 		</div>
 	{:else if messages.length === 0}
 		<div class="flex h-40 items-center justify-center">
@@ -79,9 +83,17 @@
 		<div class="space-y-3">
 			{#each messages as msg (msg.id)}
 				<div
-					class="rounded-lg border border-border bg-surface-raised p-4 {!msg.read_at && msg.sender.id !== currentUserId ? 'border-l-2 border-l-emerald-500' : ''}"
+					class="rounded-lg border border-border bg-surface-raised p-4 {!msg.read_at &&
+					msg.sender.id !== currentUserId
+						? 'border-l-2 border-l-emerald-500'
+						: ''}"
 					onclick={() => !msg.read_at && markRead(msg.id)}
-					onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); !msg.read_at && markRead(msg.id); } }}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							!msg.read_at && markRead(msg.id);
+						}
+					}}
 					role="button"
 					tabindex={0}
 				>

@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { parseCardList } from '$lib/parser';
-	import type { WishlistCard, CardPrint, LookupResult } from '$lib/types';
+	import type { WishlistCard, LookupResult } from '$lib/types';
 	import { getCreatorFingerprint } from '$lib/device';
 	import { getLocaleStore, t } from '$lib/i18n';
-	import PrintingsDropdown from '$lib/components/PrintingsDropdown.svelte';
+	import { useClerkContext } from 'svelte-clerk';
+	import CardRow from '$lib/components/CardRow.svelte';
+	import CardEditSheet from '$lib/components/CardEditSheet.svelte';
 
 	let localeStore = getLocaleStore();
+	let clerkCtx = useClerkContext();
+	let isSignedIn = $derived(!!clerkCtx.user?.id);
 	let input = $state('');
 	let ownerName = $state('');
 	let selectedGame = $state('mtg');
@@ -15,7 +19,8 @@
 	let wishlistCards = $state<WishlistCard[]>([]);
 	let isLoading = $state(false);
 	let lookupError = $state<string | null>(null);
-	let openPrintingsForCard = $state<string | null>(null);
+	let selectedCard = $state<WishlistCard | null>(null);
+	let isDrawerOpen = $state(false);
 
 	const parsedCards = $derived(parseCardList(input));
 	const hasCards = $derived(parsedCards.length > 0);
@@ -28,6 +33,24 @@
 	];
 
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function makeCardDefaults(c: LookupResult): WishlistCard {
+		return {
+			name: c.name,
+			qty: c.qty,
+			imageUrl: c.imageUrl,
+			manaCost: c.manaCost,
+			prices: c.prices as WishlistCard['prices'],
+			oracleId: c.oracleId,
+			set: c.set,
+			collectorNumber: c.collectorNumber,
+			condition: 'NM',
+			isFoil: false,
+			isSigned: false,
+			isAltered: false,
+			language: 'en'
+		};
+	}
 
 	$effect(() => {
 		const cards = parsedCards;
@@ -50,26 +73,45 @@
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
-						cards: cards.map((c) => ({ name: c.name, qty: c.qty })),
+						cards: cards.map((c) => ({
+							name: c.name,
+							qty: c.qty,
+							set: c.set,
+							collector_number: c.collector_number
+						})),
 						game: selectedGame
 					})
 				});
 				const result = await response.json();
 				if (result.success && result.data?.cards) {
-					wishlistCards = result.data.cards.map((c: LookupResult) => ({
-						name: c.name,
-						qty: c.qty,
-						imageUrl: c.imageUrl,
-						manaCost: c.manaCost,
-						prices: c.prices as WishlistCard['prices']
-					}));
+					wishlistCards = result.data.cards.map((c: LookupResult) => makeCardDefaults(c));
 				} else {
 					lookupError = result.error?.message ?? 'Failed to fetch cards';
-					wishlistCards = cards.map((c) => ({ name: c.name, qty: c.qty, imageUrl: null, manaCost: null }));
+					wishlistCards = cards.map((c) => ({
+						name: c.name,
+						qty: c.qty,
+						imageUrl: null,
+						manaCost: null,
+						condition: 'NM',
+						isFoil: false,
+						isSigned: false,
+						isAltered: false,
+						language: 'en'
+					}));
 				}
 			} catch {
 				lookupError = 'Failed to fetch cards';
-				wishlistCards = cards.map((c) => ({ name: c.name, qty: c.qty, imageUrl: null, manaCost: null }));
+				wishlistCards = cards.map((c) => ({
+					name: c.name,
+					qty: c.qty,
+					imageUrl: null,
+					manaCost: null,
+					condition: 'NM',
+					isFoil: false,
+					isSigned: false,
+					isAltered: false,
+					language: 'en'
+				}));
 			} finally {
 				isLoading = false;
 			}
@@ -90,9 +132,16 @@
 					cards: wishlistCards.map((c) => ({
 						name: c.name,
 						qty: c.qty,
+						set: c.set,
+						collector_number: c.collectorNumber,
 						imageUrl: c.imageUrl,
 						manaCost: c.manaCost,
-						oracleId: c.oracleId
+						oracleId: c.oracleId,
+						condition: c.condition,
+						isFoil: c.isFoil,
+						isSigned: c.isSigned,
+						isAltered: c.isAltered,
+						language: c.language
 					})),
 					creatorFingerprint: fingerprint,
 					ownerName: ownerName || null,
@@ -123,25 +172,22 @@
 		navigator.clipboard.writeText(url);
 	}
 
-	function handlePrintSelect(cardName: string, print: CardPrint, index: number) {
-		wishlistCards = wishlistCards.map((card) => {
-			if (card.name === cardName) {
-				return {
-					...card,
-					imageUrl: print.imageUrl,
-					manaCost: print.manaCost,
-					prices: {
-						usd: print.price,
-						usdFoil: print.priceFoil,
-						eur: null,
-						eurFoil: null,
-						tix: null
-					},
-					selectedPrintIndex: index
-				};
-			}
-			return card;
-		});
+	function openCardEdit(card: WishlistCard) {
+		selectedCard = card;
+		isDrawerOpen = true;
+	}
+
+	function handleSaveCard(updated: WishlistCard) {
+		wishlistCards = wishlistCards.map((c) => (c.name === updated.name ? updated : c));
+		isDrawerOpen = false;
+		selectedCard = null;
+	}
+
+	function handleRemoveCard() {
+		if (!selectedCard) return;
+		wishlistCards = wishlistCards.filter((c) => c.name !== selectedCard!.name);
+		isDrawerOpen = false;
+		selectedCard = null;
 	}
 </script>
 
@@ -176,7 +222,10 @@
 					</button>
 				</div>
 				<button
-					onclick={() => { savedId = null; input = ''; }}
+					onclick={() => {
+						savedId = null;
+						input = '';
+					}}
 					class="text-text-dim underline hover:text-text"
 				>
 					{t($localeStore, 'home.createAnother')}
@@ -186,9 +235,9 @@
 			<div class="mb-6 flex items-center gap-4">
 				<span class="text-sm font-medium text-text-dim">{t($localeStore, 'home.gameLabel')}:</span>
 				<div class="flex gap-2">
-					{#each games as game}
+					{#each games as game (game.id)}
 						<button
-							onclick={() => selectedGame = game.id}
+							onclick={() => (selectedGame = game.id)}
 							class="rounded-lg px-4 py-2 text-sm transition-colors {selectedGame === game.id
 								? 'bg-accent-bg text-white'
 								: 'border border-border-strong text-text-dim hover:bg-surface-card'}"
@@ -214,17 +263,21 @@
 						class="h-[500px] w-full resize-none rounded-xl border border-border bg-surface-raised p-4 font-mono text-sm leading-relaxed text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 					></textarea>
 					<div class="flex items-center justify-between gap-4">
-						<div class="flex-1">
-							<input
-								type="text"
-								bind:value={ownerName}
-								placeholder="Your name (optional)"
-								class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
-							/>
-						</div>
+						{#if !isSignedIn}
+							<div class="flex-1">
+								<input
+									type="text"
+									bind:value={ownerName}
+									placeholder={t($localeStore, 'home.yourName')}
+									class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
+								/>
+							</div>
+						{/if}
 						<div class="flex items-center gap-4">
 							<p class="text-sm text-text-muted">
-								{parsedCards.length} {t($localeStore, 'home.uniqueCards')} · {totalCards} {t($localeStore, 'home.total')}
+								{parsedCards.length}
+								{t($localeStore, 'home.uniqueCards')} · {totalCards}
+								{t($localeStore, 'home.total')}
 							</p>
 							<button
 								onclick={saveWishlist}
@@ -242,77 +295,42 @@
 
 				<div class="space-y-4">
 					<div class="flex items-center justify-between">
-						<span class="block text-sm font-medium text-text-dim">{t($localeStore, 'home.preview')}</span>
+						<span class="block text-sm font-medium text-text-dim"
+							>{t($localeStore, 'home.preview')}</span
+						>
 						<span class="text-xs text-text-muted">{t($localeStore, 'home.livePreview')}</span>
 					</div>
 
 					{#if isLoading}
-						<div class="flex h-[500px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50">
+						<div
+							class="flex h-[500px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"
+						>
 							<div class="text-center">
-								<div class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+								<div
+									class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
+								></div>
 								<p class="text-sm text-text-dim">{t($localeStore, 'home.fetching')}</p>
 							</div>
 						</div>
 					{:else if lookupError}
-						<div class="flex h-[500px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-surface-raised/50 p-6">
+						<div
+							class="flex h-[500px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-surface-raised/50 p-6"
+						>
 							<p class="text-center text-sm text-danger">{lookupError}</p>
-							<p class="text-center text-xs text-text-muted">{t($localeStore, 'home.imagesUnavailable')}</p>
+							<p class="text-center text-xs text-text-muted">
+								{t($localeStore, 'home.imagesUnavailable')}
+							</p>
 						</div>
 					{:else if hasCards}
-						<div class="grid max-h-[500px] grid-cols-2 gap-4 overflow-y-auto pr-2 sm:grid-cols-3">
+						<div class="max-h-[500px] space-y-2 overflow-y-auto pr-2">
 							{#each wishlistCards as card (card.name)}
-								{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
-								<div class="group relative overflow-hidden rounded-lg border border-border bg-surface-raised transition-all hover:scale-[1.02] hover:border-border-strong">
-									{#if card.imageUrl}
-										<img src={card.imageUrl} alt={card.name} class="aspect-[5/7] w-full object-cover" loading="lazy" />
-									{:else}
-										<div class="flex aspect-[5/7] w-full items-center justify-center bg-surface-card">
-											<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
-										</div>
-									{/if}
-									<div class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text">×{card.qty}</div>
-									{#if card.selectedPrintIndex !== undefined}
-										<div class="absolute bottom-14 left-2 rounded bg-emerald-900/80 px-2 py-0.5 text-[10px] text-emerald-300">
-											{(card.printings?.[card.selectedPrintIndex]?.set ?? '').toUpperCase()}
-										</div>
-									{/if}
-									<div class="border-t border-border p-2">
-										<div class="flex items-center justify-between">
-											<p class="truncate text-xs text-text-soft">{card.name}</p>
-											<button
-												type="button"
-												class="edit-btn text-text-muted hover:text-text-soft"
-												data-card-id={cardId}
-												aria-label="Edit printing"
-												onclick={() => (openPrintingsForCard = openPrintingsForCard === card.name ? null : card.name)}
-											>
-												<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-												</svg>
-											</button>
-										</div>
-										{#if card.manaCost}
-											<p class="mt-0.5 text-xs text-text-muted">{card.manaCost}</p>
-										{/if}
-									</div>
-								</div>
+								<CardRow {card} onClick={() => openCardEdit(card)} />
 							{/each}
 						</div>
-						{#each wishlistCards as card (card.name)}
-							{@const cardId = `card-${card.name.replace(/[^a-zA-Z0-9]/g, '-')}`}
-							{@const positionRef = typeof document !== 'undefined' ? document.querySelector(`[data-card-id="${cardId}"]`) : null}
-							{#if openPrintingsForCard === card.name}
-								<PrintingsDropdown
-									{card}
-									positionRef={positionRef as HTMLElement}
-									onSelect={(print, index) => { handlePrintSelect(card.name, print, index); openPrintingsForCard = null; }}
-									isOpen={true}
-									gameSlug={selectedGame}
-								/>
-							{/if}
-						{/each}
 					{:else}
-						<div class="flex h-[500px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50">
+						<div
+							class="flex h-[500px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"
+						>
 							<p class="text-sm text-text-muted">{t($localeStore, 'home.typeToPreview')}</p>
 						</div>
 					{/if}
@@ -321,3 +339,18 @@
 		{/if}
 	</main>
 </div>
+
+{#if selectedCard}
+	<CardEditSheet
+		card={selectedCard}
+		isOpen={isDrawerOpen}
+		gameSlug={selectedGame}
+		isCollection={false}
+		onSave={handleSaveCard}
+		onRemove={handleRemoveCard}
+		onClose={() => {
+			isDrawerOpen = false;
+			selectedCard = null;
+		}}
+	/>
+{/if}

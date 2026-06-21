@@ -2,7 +2,14 @@
 	let { data } = $props();
 
 	interface AdminData {
-		users: Array<{ id: string; display_name: string | null; username: string | null; is_public: boolean; is_admin: boolean; created_at: string }>;
+		users: Array<{
+			id: string;
+			display_name: string | null;
+			username: string | null;
+			is_public: boolean;
+			is_admin: boolean;
+			created_at: string;
+		}>;
 		trades: Array<{ id: string; status: string; created_at: string }>;
 		stats: {
 			totalUsers: number;
@@ -48,7 +55,9 @@
 
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
-			<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			<div
+				class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+			></div>
 		</div>
 	{:else if error}
 		<div class="rounded-lg bg-danger-bg p-4 text-sm text-danger">{error}</div>
@@ -104,7 +113,9 @@
 						<div class="rounded border border-border bg-surface-raised/50 p-3 text-sm">
 							<div class="flex items-center justify-between">
 								<span class="font-mono text-xs text-text-dim">{t.id.slice(0, 8)}...</span>
-								<span class="rounded-full px-2 py-0.5 text-xs bg-surface-card text-text-dim">{t.status}</span>
+								<span class="rounded-full px-2 py-0.5 text-xs bg-surface-card text-text-dim"
+									>{t.status}</span
+								>
 							</div>
 							<p class="text-xs text-text-muted">{new Date(t.created_at).toLocaleDateString()}</p>
 						</div>

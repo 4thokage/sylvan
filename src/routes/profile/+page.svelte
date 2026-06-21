@@ -80,7 +80,9 @@
 		</div>
 	{:else if isLoading}
 		<div class="flex h-40 items-center justify-center">
-			<div class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			<div
+				class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
+			></div>
 		</div>
 	{:else}
 		<div class="mb-8">
@@ -90,13 +92,21 @@
 
 		{#if message}
 			<div
-				class="mb-4 rounded-lg p-3 text-sm {message.type === 'success' ? 'bg-emerald-900/20 text-accent' : 'bg-danger-bg text-danger'}"
+				class="mb-4 rounded-lg p-3 text-sm {message.type === 'success'
+					? 'bg-emerald-900/20 text-accent'
+					: 'bg-danger-bg text-danger'}"
 			>
 				{message.text}
 			</div>
 		{/if}
 
-		<form onsubmit={(e) => { e.preventDefault(); saveProfile(); }} class="space-y-6">
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveProfile();
+			}}
+			class="space-y-6"
+		>
 			<div>
 				<label for="displayName" class="mb-1 block text-sm font-medium text-text-dim">
 					Display Name
@@ -112,9 +122,7 @@
 			</div>
 
 			<div>
-				<label for="bio" class="mb-1 block text-sm font-medium text-text-dim">
-					Bio
-				</label>
+				<label for="bio" class="mb-1 block text-sm font-medium text-text-dim"> Bio </label>
 				<textarea
 					id="bio"
 					bind:value={bio}

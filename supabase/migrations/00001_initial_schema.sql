@@ -1,8 +1,8 @@
--- Sylvan Web: Initial Schema Migration
--- Creates the normalized database structure for multi-TCG support
+-- Sylvan Web: Initial Schema
+-- Clean single migration for pre-production reset.
 
 -- 0. Extensions
-create extension if not exists pg_trgm;
+create extension if not exists extensions.pg_trgm;
 
 -- 1. Games (MTG, Pokémon, Riftbound, etc.)
 create table if not exists public.games (
@@ -18,7 +18,7 @@ insert into public.games (slug, name) values
   ('riftbound', 'Riftbound')
 on conflict (slug) do nothing;
 
--- 2. Users (our own users table synced with Clerk)
+-- 2. Users
 create table if not exists public.users (
   id                uuid primary key default gen_random_uuid(),
   clerk_user_id     text unique,
@@ -34,7 +34,7 @@ create table if not exists public.users (
   updated_at        timestamptz default now()
 );
 
--- 3. Cards (normalized, game-agnostic)
+-- 3. Cards (abstract identity layer)
 create table if not exists public.cards (
   id              uuid primary key default gen_random_uuid(),
   game_id         uuid references public.games(id) not null,
@@ -50,7 +50,7 @@ create index if not exists idx_cards_game on public.cards(game_id);
 create index if not exists idx_cards_oracle on public.cards(oracle_id);
 create index if not exists idx_cards_name_trgm on public.cards using gin(normalized_name gin_trgm_ops);
 
--- 4. Card Printings (sets/editions)
+-- 4. Card Printings (physical version layer)
 create table if not exists public.card_printings (
   id                uuid primary key default gen_random_uuid(),
   card_id           uuid references public.cards(id) not null,
@@ -73,61 +73,61 @@ create index if not exists idx_printings_card on public.card_printings(card_id);
 create index if not exists idx_printings_set on public.card_printings(set_code);
 create index if not exists idx_printings_game on public.card_printings(game_id);
 
--- 5. User Collection (individual card instances)
+-- 5. User Cards (user-owned instance stacks)
 create table if not exists public.user_cards (
-  id                 uuid primary key default gen_random_uuid(),
-  user_id            uuid references public.users(id) not null,
-  card_id            uuid references public.cards(id),
-  printing_id        uuid references public.card_printings(id),
-  card_name          text not null,
-  image_url          text,
-  quantity           integer default 1,
-  condition          text default 'NM',
-  is_foil            boolean default false,
-  is_signed          boolean default false,
-  is_altered         boolean default false,
-  language           text default 'en',
-  is_custom          boolean default false,
-  custom_image_url   text,
-  user_price_override decimal(12,2),
-  notes              text,
-  is_public          boolean default true,
-  created_at         timestamptz default now(),
-  updated_at         timestamptz default now()
+  id                uuid primary key default gen_random_uuid(),
+  user_id           uuid references public.users(id) not null,
+  card_printing_id  uuid references public.card_printings(id) not null,
+  game_id           uuid references public.games(id) not null,
+  quantity          integer default 1,
+  condition         text default 'NM',
+  is_foil           boolean default false,
+  is_signed         boolean default false,
+  is_altered        boolean default false,
+  language          text default 'en',
+  is_tradeable      boolean default true,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
 );
 
 create index if not exists idx_user_cards_user on public.user_cards(user_id);
-create index if not exists idx_user_cards_card on public.user_cards(card_id);
-create index if not exists idx_user_cards_printing on public.user_cards(printing_id);
+create index if not exists idx_user_cards_printing on public.user_cards(card_printing_id);
+create index if not exists idx_user_cards_game on public.user_cards(game_id);
 
 -- 6. Wishlists
 create table if not exists public.wishlists (
-  id                text primary key,
-  user_id           uuid references public.users(id),
-  game_id           uuid references public.games(id),
-  title             text,
-  owner_name        text,
+  id                  text primary key,
+  user_id             uuid references public.users(id),
+  game_id             uuid references public.games(id),
+  title               text,
+  owner_name          text,
   creator_fingerprint text,
-  visibility        text default 'public',
-  created_at        timestamptz default now(),
-  updated_at        timestamptz default now()
+  visibility          text default 'public',
+  created_at          timestamptz default now(),
+  updated_at          timestamptz default now()
 );
 
 create index if not exists idx_wishlists_user on public.wishlists(user_id);
 create index if not exists idx_wishlists_visibility on public.wishlists(visibility);
 
--- 7. Wishlist Items
+-- 7. Wishlist Items (card identity level + optional printing preference)
 create table if not exists public.wishlist_items (
   id                uuid primary key default gen_random_uuid(),
   wishlist_id       text references public.wishlists(id) on delete cascade not null,
-  card_id           uuid references public.cards(id),
-  printing_id       uuid references public.card_printings(id),
-  card_name         text not null,
+  card_id           uuid references public.cards(id) not null,
+  card_printing_id  uuid references public.card_printings(id),
   quantity          integer default 1,
+  condition         text default 'NM',
+  is_foil           boolean default false,
+  is_signed         boolean default false,
+  is_altered        boolean default false,
+  language          text default 'en',
   created_at        timestamptz default now()
 );
 
 create index if not exists idx_wishlist_items_wishlist on public.wishlist_items(wishlist_id);
+create index if not exists idx_wishlist_items_card on public.wishlist_items(card_id);
+create index if not exists idx_wishlist_items_printing on public.wishlist_items(card_printing_id);
 
 -- 8. Trades
 create table if not exists public.trades (
@@ -146,26 +146,32 @@ create index if not exists idx_trades_proposer on public.trades(proposer_id);
 create index if not exists idx_trades_recipient on public.trades(recipient_id);
 create index if not exists idx_trades_status on public.trades(status);
 
--- 9. Trade Items
-create table if not exists public.trade_items (
+-- 9. Trade Offers (immutable snapshots)
+create table if not exists public.trade_offers (
   id              uuid primary key default gen_random_uuid(),
   trade_id        uuid references public.trades(id) on delete cascade not null,
+  offered_by      uuid references public.users(id) not null,
+  created_at      timestamptz default now()
+);
+
+create index if not exists idx_trade_offers_trade on public.trade_offers(trade_id);
+
+-- Add current_offer_id to trades (circular FK, must come after trade_offers)
+alter table public.trades
+  add column if not exists current_offer_id uuid references public.trade_offers(id);
+
+create index if not exists idx_trades_current_offer on public.trades(current_offer_id);
+
+-- 10. Trade Offer Items (items within an immutable offer)
+create table if not exists public.trade_offer_items (
+  id              uuid primary key default gen_random_uuid(),
+  offer_id        uuid references public.trade_offers(id) on delete cascade not null,
   user_card_id    uuid references public.user_cards(id) not null,
   side            text not null,
   created_at      timestamptz default now()
 );
 
-create index if not exists idx_trade_items_trade on public.trade_items(trade_id);
-
--- 10. Trade Offers (counter-offer support)
-create table if not exists public.trade_offers (
-  id              uuid primary key default gen_random_uuid(),
-  trade_id        uuid references public.trades(id) on delete cascade not null,
-  offered_by      uuid references public.users(id) not null,
-  status          text default 'pending',
-  notes           text,
-  created_at      timestamptz default now()
-);
+create index if not exists idx_offer_items_offer on public.trade_offer_items(offer_id);
 
 -- 11. Messages
 create table if not exists public.messages (
@@ -198,7 +204,7 @@ create table if not exists public.notifications (
 create index if not exists idx_notifications_user on public.notifications(user_id);
 create index if not exists idx_notifications_read on public.notifications(user_id, read_at);
 
--- 13. User Reputation / Ratings
+-- 13. Trade Ratings
 create table if not exists public.trade_ratings (
   id              uuid primary key default gen_random_uuid(),
   trade_id        uuid references public.trades(id) on delete cascade not null,
@@ -235,7 +241,6 @@ create index if not exists idx_user_sessions_fingerprint on public.user_sessions
 -- ROW LEVEL SECURITY
 -- =====================
 
--- Enable RLS on all tables
 alter table public.users enable row level security;
 alter table public.cards enable row level security;
 alter table public.card_printings enable row level security;
@@ -243,20 +248,20 @@ alter table public.user_cards enable row level security;
 alter table public.wishlists enable row level security;
 alter table public.wishlist_items enable row level security;
 alter table public.trades enable row level security;
-alter table public.trade_items enable row level security;
 alter table public.trade_offers enable row level security;
+alter table public.trade_offer_items enable row level security;
 alter table public.messages enable row level security;
 alter table public.notifications enable row level security;
 alter table public.trade_ratings enable row level security;
 alter table public.blocked_users enable row level security;
 alter table public.user_sessions enable row level security;
 
--- Helper function to get current user id from Clerk JWT
--- In Supabase, Clerk JWTs include `sub` claim which is the clerk_user_id
 create or replace function public.current_user_id()
 returns uuid
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select id from public.users where clerk_user_id = auth.jwt() ->> 'sub';
 $$;
@@ -274,20 +279,26 @@ create policy "Users can update own profile"
   on public.users for update
   using (current_user_id() = id);
 
--- Cards: public read, admin write
+-- Cards: public read
 create policy "Cards are publicly readable"
   on public.cards for select
   using (true);
 
--- Card Printings: public read, admin write
+-- Card Printings: public read
 create policy "Card printings are publicly readable"
   on public.card_printings for select
   using (true);
 
--- User Cards: owner can CRUD; public can read public cards
-create policy "User cards are visible to owner"
+-- User Cards: owner can CRUD; public can read if user's profile is public
+create policy "User cards visible to owner"
   on public.user_cards for select
-  using (user_id = current_user_id() or (is_public = true));
+  using (
+    user_id = current_user_id()
+    or exists (
+      select 1 from public.users
+      where id = user_id and is_public = true
+    )
+  );
 
 create policy "User cards insert by owner"
   on public.user_cards for insert
@@ -341,7 +352,7 @@ create policy "Wishlist items delete by owner"
     )
   );
 
--- Trades: participants can see their trades
+-- Trades: participants can see and update their trades
 create policy "Trades visible to participants"
   on public.trades for select
   using (proposer_id = current_user_id() or recipient_id = current_user_id());
@@ -354,9 +365,9 @@ create policy "Trades can be updated by participants"
   on public.trades for update
   using (proposer_id = current_user_id() or recipient_id = current_user_id());
 
--- Trade Items: visible to trade participants
-create policy "Trade items visible to participants"
-  on public.trade_items for select
+-- Trade Offers: visible to trade participants
+create policy "Trade offers visible to participants"
+  on public.trade_offers for select
   using (
     exists (
       select 1 from public.trades
@@ -365,12 +376,34 @@ create policy "Trade items visible to participants"
     )
   );
 
-create policy "Trade items insert by proposer"
-  on public.trade_items for insert
+create policy "Trade offers insert by proposer"
+  on public.trade_offers for insert
   with check (
     exists (
       select 1 from public.trades
       where id = trade_id and proposer_id = current_user_id()
+    )
+  );
+
+-- Trade Offer Items: visible to trade participants
+create policy "Trade offer items visible to participants"
+  on public.trade_offer_items for select
+  using (
+    exists (
+      select 1 from public.trade_offers o
+      join public.trades t on t.id = o.trade_id
+      where o.id = offer_id
+      and (t.proposer_id = current_user_id() or t.recipient_id = current_user_id())
+    )
+  );
+
+create policy "Trade offer items insert by offer owner"
+  on public.trade_offer_items for insert
+  with check (
+    exists (
+      select 1 from public.trade_offers o
+      join public.trades t on t.id = o.trade_id
+      where o.id = offer_id and t.proposer_id = current_user_id()
     )
   );
 
@@ -396,7 +429,7 @@ create policy "Notifications update by recipient"
   on public.notifications for update
   using (user_id = current_user_id());
 
--- Trade Ratings: anyone can read ratings; each trade gets 1 rating per rater
+-- Trade Ratings: publicly readable; participants can rate
 create policy "Trade ratings are publicly readable"
   on public.trade_ratings for select
   using (true);
@@ -418,6 +451,15 @@ create policy "Users can unblock"
   on public.blocked_users for delete
   using (blocker_id = current_user_id());
 
--- Migrate data from old wishlists table
--- The old wishlists table has cards stored as JSON blobs
--- This migration handles the new structure; old data migration is a separate step
+-- User Sessions: public read/insert by fingerprint for anonymous flow
+create policy "User sessions visible by fingerprint"
+  on public.user_sessions for select
+  using (true);
+
+create policy "User sessions insert"
+  on public.user_sessions for insert
+  with check (true);
+
+create policy "User sessions update"
+  on public.user_sessions for update
+  using (true);

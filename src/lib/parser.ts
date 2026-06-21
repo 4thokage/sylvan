@@ -1,14 +1,21 @@
+import Papa from 'papaparse';
+
 export interface ParsedCard {
 	name: string;
 	qty: number;
 	set?: string;
 	collector_number?: string;
+	condition?: string;
+	foil?: boolean;
 }
 
-const ARENA_REGEX = /^(?<qty>\d+)\s+(?<name>[^(]+)\s*\((?<set>[A-Z0-9]+)\)\s*(?<collector_number>\d+)$/;
+const ARENA_REGEX =
+	/^(?<qty>\d+)\s+(?<name>[^(]+)\s*\((?<set>[A-Z0-9]+)\)\s*(?<collector_number>\d+)$/;
 const STANDARD_REGEX = /^(?<qty>\d+)\s+(?<name>.+)$/;
 
-export function parseCardLine(line: string): { name: string; qty: number; set?: string; collector_number?: string } | null {
+export function parseCardLine(
+	line: string
+): { name: string; qty: number; set?: string; collector_number?: string } | null {
 	const trimmed = line.trim();
 	if (!trimmed) return null;
 
@@ -59,23 +66,74 @@ export function parseCardList(input: string): ParsedCard[] {
 	return Array.from(cardMap.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const FOIL_TRUE = new Set(['true', 'yes', '1', 'foil']);
+
+function normalizeHeader(h: string): string {
+	return h
+		.toLowerCase()
+		.trim()
+		.replace(/[\s_]+/g, '');
+}
+
+function detectHeaderIndex(headers: string[], ...variants: string[]): number {
+	for (let i = 0; i < headers.length; i++) {
+		const normalized = normalizeHeader(headers[i]);
+		for (const v of variants) {
+			if (normalized === v) return i;
+		}
+	}
+	return -1;
+}
+
 export function parseCsv(text: string): ParsedCard[] {
-	const lines = text.split('\n').filter((l) => l.trim());
+	const parsed = Papa.parse<string[]>(text.trim(), {
+		skipEmptyLines: true,
+		comments: '#'
+	});
+
+	if (parsed.data.length === 0) return [];
+
+	const firstRow = parsed.data[0];
+	const hasHeaders =
+		firstRow.some((cell) => {
+			const h = normalizeHeader(cell);
+			return h === 'name' || h === 'quantity' || h === 'qty' || h === 'condition' || h === 'foil';
+		}) &&
+		!firstRow.some((cell) => {
+			const h = normalizeHeader(cell);
+			return h === '1' || h === '2' || h === '3' || h === '4';
+		});
+
+	const rows = hasHeaders ? parsed.data.slice(1) : parsed.data;
+	const headers = hasHeaders ? firstRow : ['Name', 'Quantity'];
+
+	const nameIdx = detectHeaderIndex(headers, 'name', 'cardname', 'card');
+	const qtyIdx = detectHeaderIndex(headers, 'quantity', 'qty', 'count', 'amount');
+	const setIdx = detectHeaderIndex(headers, 'set', 'setcode', 'edition');
+	const cnIdx = detectHeaderIndex(headers, 'collectornumber', 'cn', 'number', 'num');
+	const condIdx = detectHeaderIndex(headers, 'condition', 'cond', 'state');
+	const foilIdx = detectHeaderIndex(headers, 'foil', 'isfoil', 'foil?');
+
 	const cards = new Map<string, ParsedCard>();
 
-	for (const line of lines) {
-		const parts = line.split(',');
-		if (parts.length < 1) continue;
-		const name = parts[0].trim().replace(/^"(.*)"$/, '$1');
-		const qty = parts.length > 1 ? parseInt(parts[1].trim(), 10) : 1;
-		if (name && !isNaN(qty) && qty > 0) {
-			const key = name.toLowerCase();
-			const existing = cards.get(key);
-			if (existing) {
-				existing.qty += qty;
-			} else {
-				cards.set(key, { name, qty });
-			}
+	for (const row of rows) {
+		const name = nameIdx >= 0 ? (row[nameIdx] || '').trim() : '';
+		const qtyRaw = qtyIdx >= 0 ? (row[qtyIdx] || '').trim() : '';
+		const qty = qtyRaw ? parseInt(qtyRaw, 10) : 1;
+
+		if (!name || isNaN(qty) || qty <= 0) continue;
+
+		const set = setIdx >= 0 ? (row[setIdx] || '').trim() || undefined : undefined;
+		const collector_number = cnIdx >= 0 ? (row[cnIdx] || '').trim() || undefined : undefined;
+		const condition = condIdx >= 0 ? (row[condIdx] || '').trim() || undefined : undefined;
+		const foil = foilIdx >= 0 ? FOIL_TRUE.has((row[foilIdx] || '').toLowerCase().trim()) : false;
+
+		const key = name.toLowerCase();
+		const existing = cards.get(key);
+		if (existing) {
+			existing.qty += qty;
+		} else {
+			cards.set(key, { name, qty, set, collector_number, condition, foil });
 		}
 	}
 

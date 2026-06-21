@@ -21,11 +21,17 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<meta name="description" content="Multi-TCG trading platform. Trade Magic: The Gathering, Pokémon TCG, and Riftbound cards." />
+	<meta
+		name="description"
+		content="Multi-TCG trading platform. Trade Magic: The Gathering, Pokémon TCG, and Riftbound cards."
+	/>
 	<meta name="theme-color" content="#10b981" />
 	<meta name="application-name" content="Sylvan" />
 	<meta property="og:title" content="Sylvan" />
-	<meta property="og:description" content="Multi-TCG trading platform. Trade MTG, Pokémon TCG, and Riftbound cards." />
+	<meta
+		property="og:description"
+		content="Multi-TCG trading platform. Trade MTG, Pokémon TCG, and Riftbound cards."
+	/>
 	<meta property="og:type" content="website" />
 </svelte:head>
 
@@ -50,7 +56,8 @@
 				<div class="flex items-center justify-center gap-4 text-sm text-text-dim">
 					<a href="/terms" class="hover:text-text" data-sveltekit-preload-data>{__t('terms')}</a>
 					<span class="text-text-muted">•</span>
-					<a href="/privacy" class="hover:text-text" data-sveltekit-preload-data>{__t('privacy')}</a>
+					<a href="/privacy" class="hover:text-text" data-sveltekit-preload-data>{__t('privacy')}</a
+					>
 				</div>
 			</div>
 		</footer>

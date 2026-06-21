@@ -1,112 +1,114 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
+import { requireAuth } from '$lib/server/middleware/auth';
 import { supabase } from '$lib/server/supabase';
 import { z } from 'zod/v4';
 
 const BlockSchema = z.object({
-  blockedId: z.string().uuid()
+	blockedId: z.string().uuid()
 });
 
-export const GET: RequestHandler = async ({ locals }) => {
-  const auth = await locals.auth();
-  const clerkUserId = auth.userId;
-  if (!clerkUserId) {
-    return json({ success: false, error: { message: 'Authentication required' } }, { status: 401 });
-  }
+export const GET: RequestHandler = async (event) => {
+	const clerkUserId = await requireAuth(event);
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id')
-    .eq('clerk_user_id', clerkUserId)
-    .single();
+	const { data: user } = await supabase
+		.from('users')
+		.select('id')
+		.eq('clerk_user_id', clerkUserId)
+		.single();
 
-  if (!user) {
-    return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
-  }
+	if (!user) {
+		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
+	}
 
-  const { data: blocked } = await supabase
-    .from('blocked_users')
-    .select('blocked_id, blocked:blocked_id(id, display_name, username)')
-    .eq('blocker_id', user.id);
+	const { data: blocked } = await supabase
+		.from('blocked_users')
+		.select('blocked_id, blocked:blocked_id(id, display_name, username)')
+		.eq('blocker_id', user.id);
 
-  return json({ success: true, data: { blocked: blocked || [] } });
+	return json({ success: true, data: { blocked: blocked || [] } });
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-  const rateCheck = apiRateLimiter({ request, getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown' } as any);
-  if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	const clerkUserId = await requireAuth(event);
+	const rateCheck = apiRateLimiter({
+		request,
+		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
+	} as any);
+	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
-  const auth = await locals.auth();
-  const clerkUserId = auth.userId;
-  if (!clerkUserId) {
-    return json({ success: false, error: { message: 'Authentication required' } }, { status: 401 });
-  }
+	const { data: user } = await supabase
+		.from('users')
+		.select('id')
+		.eq('clerk_user_id', clerkUserId)
+		.single();
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id')
-    .eq('clerk_user_id', clerkUserId)
-    .single();
+	if (!user) {
+		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
+	}
 
-  if (!user) {
-    return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
-  }
+	const body = await request.json();
+	const parsed = BlockSchema.safeParse(body);
+	if (!parsed.success) {
+		return json(
+			{ success: false, error: { message: parsed.error.issues.map((i) => i.message).join(', ') } },
+			{ status: 400 }
+		);
+	}
 
-  const body = await request.json();
-  const parsed = BlockSchema.safeParse(body);
-  if (!parsed.success) {
-    return json({ success: false, error: { message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 });
-  }
+	if (parsed.data.blockedId === user.id) {
+		return json({ success: false, error: { message: 'Cannot block yourself' } }, { status: 400 });
+	}
 
-  if (parsed.data.blockedId === user.id) {
-    return json({ success: false, error: { message: 'Cannot block yourself' } }, { status: 400 });
-  }
+	const { error } = await supabase.from('blocked_users').upsert(
+		{
+			blocker_id: user.id,
+			blocked_id: parsed.data.blockedId
+		},
+		{ onConflict: 'blocker_id,blocked_id' }
+	);
 
-  const { error } = await supabase.from('blocked_users').upsert({
-    blocker_id: user.id,
-    blocked_id: parsed.data.blockedId
-  }, { onConflict: 'blocker_id,blocked_id' });
+	if (error) {
+		return json({ success: false, error: { message: error.message } }, { status: 500 });
+	}
 
-  if (error) {
-    return json({ success: false, error: { message: error.message } }, { status: 500 });
-  }
-
-  return json({ success: true });
+	return json({ success: true });
 };
 
-export const DELETE: RequestHandler = async ({ request, locals }) => {
-  const auth = await locals.auth();
-  const clerkUserId = auth.userId;
-  if (!clerkUserId) {
-    return json({ success: false, error: { message: 'Authentication required' } }, { status: 401 });
-  }
+export const DELETE: RequestHandler = async (event) => {
+	const { request } = event;
+	const clerkUserId = await requireAuth(event);
 
-  const { data: user } = await supabase
-    .from('users')
-    .select('id')
-    .eq('clerk_user_id', clerkUserId)
-    .single();
+	const { data: user } = await supabase
+		.from('users')
+		.select('id')
+		.eq('clerk_user_id', clerkUserId)
+		.single();
 
-  if (!user) {
-    return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
-  }
+	if (!user) {
+		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
+	}
 
-  const body = await request.json();
-  const parsed = BlockSchema.safeParse(body);
-  if (!parsed.success) {
-    return json({ success: false, error: { message: parsed.error.issues.map(i => i.message).join(', ') } }, { status: 400 });
-  }
+	const body = await request.json();
+	const parsed = BlockSchema.safeParse(body);
+	if (!parsed.success) {
+		return json(
+			{ success: false, error: { message: parsed.error.issues.map((i) => i.message).join(', ') } },
+			{ status: 400 }
+		);
+	}
 
-  const { error } = await supabase
-    .from('blocked_users')
-    .delete()
-    .eq('blocker_id', user.id)
-    .eq('blocked_id', parsed.data.blockedId);
+	const { error } = await supabase
+		.from('blocked_users')
+		.delete()
+		.eq('blocker_id', user.id)
+		.eq('blocked_id', parsed.data.blockedId);
 
-  if (error) {
-    return json({ success: false, error: { message: error.message } }, { status: 500 });
-  }
+	if (error) {
+		return json({ success: false, error: { message: error.message } }, { status: 500 });
+	}
 
-  return json({ success: true });
+	return json({ success: true });
 };

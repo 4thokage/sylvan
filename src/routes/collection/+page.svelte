@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { parseCardList, parseCsv, parseDeckbox, cardsToText, cardsToCsv } from '$lib/parser';
+	import { parseCardList, parseCsv, parseDeckbox, cardsToText } from '$lib/parser';
 	import type { WishlistCard, LookupResult } from '$lib/types';
+	import CardRow from '$lib/components/CardRow.svelte';
+	import CardEditSheet from '$lib/components/CardEditSheet.svelte';
 
 	let input = $state('');
 	let collectionCards = $state<WishlistCard[]>([]);
@@ -8,9 +10,9 @@
 	let isSaving = $state(false);
 	let isLoadingCollection = $state(true);
 	let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
-	let importFormat = $state('text');
-	let showImportHelp = $state(false);
 	let selectedGame = $state('mtg');
+	let selectedCard = $state<WishlistCard | null>(null);
+	let isDrawerOpen = $state(false);
 
 	import { useClerkContext } from 'svelte-clerk';
 	import { getLocaleStore, t } from '$lib/i18n';
@@ -30,7 +32,37 @@
 	const parsedCards = $derived(parseCardList(input));
 	const totalCards = $derived(collectionCards.reduce((sum, c) => sum + c.qty, 0));
 
-	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	function makeCardDefaults(c: LookupResult): WishlistCard {
+		return {
+			name: c.name,
+			qty: c.qty,
+			imageUrl: c.imageUrl,
+			manaCost: c.manaCost,
+			prices: c.prices as WishlistCard['prices'],
+			oracleId: c.oracleId,
+			set: c.set,
+			collectorNumber: c.collectorNumber,
+			condition: 'NM',
+			isFoil: false,
+			isSigned: false,
+			isAltered: false,
+			language: 'en',
+			isTradeable: true
+		};
+	}
+
+	function detectFormat(text: string) {
+		const textResult = parseCardList(text);
+		if (textResult.length > 0) return textResult;
+
+		const csvResult = parseCsv(text);
+		if (csvResult.length > 0) return csvResult;
+
+		const deckboxResult = parseDeckbox(text);
+		if (deckboxResult.length > 0) return deckboxResult;
+
+		return [];
+	}
 
 	$effect(() => {
 		if (isSignedIn && isLoadingCollection) {
@@ -38,52 +70,34 @@
 		}
 	});
 
-	$effect(() => {
-		const cards = parsedCards;
-		if (debounceTimer) clearTimeout(debounceTimer);
-		if (cards.length === 0) {
-			collectionCards = [];
-			isLoading = false;
-			return;
-		}
-		isLoading = true;
-		debounceTimer = setTimeout(async () => {
-			try {
-				const response = await fetch('/api/cards/lookup', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						cards: cards.map((c) => ({ name: c.name, qty: c.qty })),
-						game: selectedGame
-					})
-				});
-				const result = await response.json();
-				if (result.success && result.data?.cards) {
-					collectionCards = result.data.cards.map((c: LookupResult) => ({
-						name: c.name,
-						qty: c.qty,
-						imageUrl: c.imageUrl,
-						manaCost: c.manaCost,
-						prices: c.prices as WishlistCard['prices']
-					}));
-				}
-			} catch {
-				// fallback
-			} finally {
-				isLoading = false;
-			}
-		}, 1000);
-	});
-
 	async function loadCollection() {
 		try {
 			const response = await fetch(`/api/collection?game=${selectedGame}`);
 			const result = await response.json();
 			if (result.success && result.data?.cards) {
-				const raw = result.data.cards.map((c: { cardName: string; quantity: number }) => ({
-					name: c.cardName,
-					qty: c.quantity
-				}));
+				const raw = result.data.cards.map(
+					(c: {
+						cardName: string;
+						quantity: number;
+						cardPrintingId: string;
+						condition: string;
+						isFoil: boolean;
+						isSigned: boolean;
+						isAltered: boolean;
+						language: string;
+						isTradeable: boolean;
+					}) => ({
+						name: c.cardName,
+						qty: c.quantity,
+						cardPrintingId: c.cardPrintingId,
+						condition: c.condition,
+						isFoil: c.isFoil,
+						isSigned: c.isSigned,
+						isAltered: c.isAltered,
+						language: c.language,
+						isTradeable: c.isTradeable
+					})
+				);
 				if (raw.length > 0) {
 					const lookupRes = await fetch('/api/cards/lookup', {
 						method: 'POST',
@@ -95,12 +109,9 @@
 					});
 					const lookupData = await lookupRes.json();
 					if (lookupData.success && lookupData.data?.cards) {
-						collectionCards = lookupData.data.cards.map((c: LookupResult) => ({
-							name: c.name,
-							qty: c.qty,
-							imageUrl: c.imageUrl,
-							manaCost: c.manaCost,
-							prices: c.prices as WishlistCard['prices']
+						collectionCards = lookupData.data.cards.map((c: LookupResult, i: number) => ({
+							...makeCardDefaults(c),
+							...raw[i]
 						}));
 					}
 				}
@@ -117,7 +128,19 @@
 		isSaving = true;
 		message = null;
 
-		const cardsToSave = collectionCards.map((card) => ({ name: card.name, qty: card.qty }));
+		const cardsToSave = collectionCards.map((card) => ({
+			name: card.name,
+			qty: card.qty,
+			cardPrintingId: card.cardPrintingId || null,
+			set: card.set,
+			collector_number: card.collectorNumber,
+			condition: card.condition,
+			isFoil: card.isFoil,
+			isSigned: card.isSigned,
+			isAltered: card.isAltered,
+			language: card.language,
+			isTradeable: card.isTradeable
+		}));
 
 		try {
 			const response = await fetch('/api/collection', {
@@ -151,65 +174,70 @@
 		}
 	}
 
-	function updateQty(cardName: string, delta: number) {
-		collectionCards = collectionCards.map((card) => {
-			if (card.name === cardName) {
-				const newQty = Math.max(0, card.qty + delta);
-				return { ...card, qty: newQty };
-			}
-			return card;
-		});
-	}
-
-	async function handleImport() {
+	async function handleAdd() {
 		if (!input.trim()) return;
 
-		let parsed;
-		switch (importFormat) {
-			case 'csv':
-				parsed = parseCsv(input);
-				break;
-			case 'deckbox':
-				parsed = parseDeckbox(input);
-				break;
-			case 'text':
-			default:
-				parsed = parseCardList(input);
-		}
-
+		const parsed = detectFormat(input);
 		if (parsed.length === 0) {
 			message = { type: 'error', text: 'No cards found in input' };
 			return;
 		}
 
-		const merged = new Map<string, number>();
-		for (const card of [...collectionCards, ...parsed]) {
-			const key = card.name.toLowerCase();
-			merged.set(key, (merged.get(key) || 0) + card.qty);
-		}
+		isLoading = true;
+		message = null;
 
-		const mergedArray = Array.from(merged.entries()).map(([name, qty]) => ({ name, qty }));
 		try {
 			const response = await fetch('/api/cards/lookup', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cards: mergedArray, game: selectedGame })
+				body: JSON.stringify({
+					cards: parsed.map((c) => ({
+						name: c.name,
+						qty: c.qty,
+						set: c.set,
+						collector_number: c.collector_number
+					})),
+					game: selectedGame
+				})
 			});
 			const result = await response.json();
 			if (result.success && result.data?.cards) {
-				collectionCards = result.data.cards.map((c: LookupResult) => ({
-					name: c.name,
-					qty: c.qty,
-					imageUrl: c.imageUrl,
-					manaCost: c.manaCost,
-					prices: c.prices as WishlistCard['prices']
+				const newCards = result.data.cards.map((c: LookupResult, i: number) => ({
+					...makeCardDefaults(c),
+					condition: parsed[i]?.condition || 'NM',
+					isFoil: parsed[i]?.foil || false
 				}));
+
+				// Merge into existing collection
+				const existingMap: Record<string, WishlistCard> = {};
+				for (const c of collectionCards) {
+					existingMap[c.name] = c;
+				}
+
+				for (const newCard of newCards) {
+					const existing = existingMap[newCard.name];
+					if (existing) {
+						existing.qty += newCard.qty;
+						existingMap[newCard.name] = existing;
+					} else {
+						existingMap[newCard.name] = newCard;
+					}
+				}
+
+				collectionCards = Object.values(existingMap);
 				input = '';
-				message = { type: 'success', text: `Imported ${parsed.length} unique cards` };
+				message = {
+					type: 'success',
+					text: `Added ${newCards.length} unique cards`
+				};
 				setTimeout(() => (message = null), 3000);
+			} else {
+				message = { type: 'error', text: 'Failed to look up cards' };
 			}
 		} catch {
-			message = { type: 'error', text: 'Failed to import cards' };
+			message = { type: 'error', text: 'Failed to add cards' };
+		} finally {
+			isLoading = false;
 		}
 	}
 
@@ -220,6 +248,24 @@
 		navigator.clipboard.writeText(text);
 		message = { type: 'success', text: 'Exported to clipboard!' };
 		setTimeout(() => (message = null), 3000);
+	}
+
+	function openCardEdit(card: WishlistCard) {
+		selectedCard = card;
+		isDrawerOpen = true;
+	}
+
+	function handleSaveCard(updated: WishlistCard) {
+		collectionCards = collectionCards.map((c) => (c.name === updated.name ? updated : c));
+		isDrawerOpen = false;
+		selectedCard = null;
+	}
+
+	function handleRemoveCard() {
+		if (!selectedCard) return;
+		collectionCards = collectionCards.filter((c) => c.name !== selectedCard!.name);
+		isDrawerOpen = false;
+		selectedCard = null;
 	}
 
 	async function switchGame(game: string) {
@@ -249,22 +295,34 @@
 	<div class="mx-auto max-w-7xl p-6">
 		<div class="mb-6 flex items-center justify-between">
 			<div>
-				<h1 class="text-2xl font-semibold tracking-tight text-accent">{t($localeStore, 'collection.title')}</h1>
+				<h1 class="text-2xl font-semibold tracking-tight text-accent">
+					{t($localeStore, 'collection.title')}
+				</h1>
 				<p class="mt-1 text-sm text-text-muted">
-					{collectionCards.length} {t($localeStore, 'collection.unique')} · {totalCards} {t($localeStore, 'collection.total')}
+					{collectionCards.length}
+					{t($localeStore, 'collection.unique')} · {totalCards}
+					{t($localeStore, 'collection.total')}
 				</p>
 			</div>
 			<div class="flex gap-2">
-				<button onclick={handleExport} disabled={collectionCards.length === 0}
-					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card">
+				<button
+					onclick={handleExport}
+					disabled={collectionCards.length === 0}
+					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card"
+				>
 					{t($localeStore, 'collection.export')}
 				</button>
-				<button onclick={clearCollection}
-					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card">
+				<button
+					onclick={clearCollection}
+					class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card"
+				>
 					{t($localeStore, 'collection.clear')}
 				</button>
-				<button onclick={saveCollection} disabled={isSaving || collectionCards.length === 0}
-					class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover">
+				<button
+					onclick={saveCollection}
+					disabled={isSaving || collectionCards.length === 0}
+					class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
+				>
 					{isSaving ? t($localeStore, 'collection.saving') : t($localeStore, 'collection.save')}
 				</button>
 			</div>
@@ -273,7 +331,7 @@
 		<div class="mb-6 flex items-center gap-4">
 			<span class="text-sm font-medium text-text-dim">{t($localeStore, 'collection.game')}:</span>
 			<div class="flex gap-2">
-				{#each games as game}
+				{#each games as game (game.id)}
 					<button
 						onclick={() => switchGame(game.id)}
 						class="rounded-lg px-4 py-2 text-sm transition-colors {selectedGame === game.id
@@ -288,7 +346,9 @@
 
 		{#if message}
 			<div
-				class="mb-4 rounded-lg p-3 text-sm {message.type === 'success' ? 'bg-emerald-900/20 text-accent' : 'bg-danger-bg text-danger'}"
+				class="mb-4 rounded-lg p-3 text-sm {message.type === 'success'
+					? 'bg-emerald-900/20 text-accent'
+					: 'bg-danger-bg text-danger'}"
 			>
 				{message.text}
 			</div>
@@ -296,87 +356,83 @@
 
 		<div class="grid gap-8 lg:grid-cols-2">
 			<div class="space-y-4">
-				<div class="flex items-center justify-between">
-					<label for="card-list" class="text-sm font-medium text-text-dim">{t($localeStore, 'collection.addCards')}</label>
-					<div class="flex items-center gap-2">
-						<select
-							bind:value={importFormat}
-							class="rounded border border-border-strong bg-surface-raised px-2 py-1 text-xs text-text-soft"
-						>
-							<option value="text">{t($localeStore, 'collection.importFormat.text')}</option>
-							<option value="csv">{t($localeStore, 'collection.importFormat.csv')}</option>
-							<option value="deckbox">{t($localeStore, 'collection.importFormat.deckbox')}</option>
-						</select>
-						<button
-							onclick={() => showImportHelp = !showImportHelp}
-							class="text-xs text-text-muted hover:text-text-soft"
-						>
-							Help
-						</button>
-					</div>
-				</div>
-
+				<label for="card-list" class="block text-sm font-medium text-text-dim">
+					{t($localeStore, 'collection.addCards')}
+				</label>
 				<textarea
 					id="card-list"
 					bind:value={input}
 					placeholder="4 Lightning Bolt&#10;4 Counterspell&#10;2 Sol Ring"
 					class="h-[300px] w-full resize-none rounded-xl border border-border bg-surface-raised p-4 font-mono text-sm leading-relaxed text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 				></textarea>
-
 				<div class="flex items-center justify-between">
 					<p class="text-sm text-text-muted">
-						{parsedCards.length} {t($localeStore, 'collection.unique')} · {parsedCards.reduce((sum, c) => sum + c.qty, 0)} {t($localeStore, 'collection.total')}
+						{parsedCards.length}
+						{t($localeStore, 'collection.unique')} · {parsedCards.reduce(
+							(sum, c) => sum + c.qty,
+							0
+						)}
+						{t($localeStore, 'collection.total')}
 					</p>
 					<button
-						onclick={handleImport}
-						disabled={!input.trim()}
+						onclick={handleAdd}
+						disabled={!input.trim() || isLoading}
 						class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
 					>
-						{t($localeStore, 'collection.import')}
+						{isLoading ? t($localeStore, 'common.loading') : t($localeStore, 'collection.add')}
 					</button>
 				</div>
 			</div>
 
 			<div class="space-y-4">
 				<div class="flex items-center justify-between">
-					<span class="text-sm font-medium text-text-dim">{t($localeStore, 'collection.title')}</span>
+					<span class="block text-sm font-medium text-text-dim"
+						>{t($localeStore, 'collection.title')}</span
+					>
 					<span class="text-xs text-text-muted">
-						{collectionCards.length > 0 ? `${collectionCards.length} ${t($localeStore, 'collection.unique')}` : ''}
+						{collectionCards.length > 0
+							? `${collectionCards.length} ${t($localeStore, 'collection.unique')}`
+							: ''}
 					</span>
 				</div>
 
-				{#if isLoadingCollection || isLoading}
-					<div class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50">
-						<div class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+				{#if isLoadingCollection}
+					<div
+						class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"
+					>
+						<div
+							class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
+						></div>
 					</div>
 				{:else if collectionCards.length > 0}
-					<div class="max-h-[400px] overflow-y-auto pr-2">
+					<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
 						{#each collectionCards as card (card.name)}
-							<div class="mb-2 flex items-center gap-3 rounded-lg border border-border bg-surface-raised p-3">
-								<div class="flex flex-1 items-center gap-3">
-									{#if card.imageUrl}
-										<img src={card.imageUrl} alt={card.name} class="h-12 w-9 rounded object-cover" loading="lazy" />
-									{/if}
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm text-text-soft">{card.name}</p>
-									</div>
-								</div>
-								<div class="flex items-center gap-2">
-									<button onclick={() => updateQty(card.name, -1)}
-										class="flex h-7 w-7 items-center justify-center rounded bg-surface-card text-text-dim hover:bg-surface-hover hover:text-text">-</button>
-									<span class="w-8 text-center text-sm font-medium text-text">{card.qty}</span>
-									<button onclick={() => updateQty(card.name, 1)}
-										class="flex h-7 w-7 items-center justify-center rounded bg-surface-card text-text-dim hover:bg-surface-hover hover:text-text">+</button>
-								</div>
-							</div>
+							<CardRow {card} onClick={() => openCardEdit(card)} />
 						{/each}
 					</div>
 				{:else}
-					<div class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50">
+					<div
+						class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"
+					>
 						<p class="text-sm text-text-muted">{t($localeStore, 'collection.empty')}</p>
 					</div>
 				{/if}
 			</div>
 		</div>
 	</div>
+
+	{#if selectedCard}
+		<CardEditSheet
+			card={selectedCard}
+			isOpen={isDrawerOpen}
+			gameSlug={selectedGame}
+			isCollection={true}
+			onSave={handleSaveCard}
+			onRemove={handleRemoveCard}
+			onClose={() => {
+				isDrawerOpen = false;
+				selectedCard = null;
+			}}
+		/>
+	{/if}
 {/if}

@@ -105,7 +105,9 @@
 			role="tooltip"
 			style={tooltipStyle}
 		>
-			<h4 class="mb-3 border-b border-border-strong pb-2 text-sm font-semibold text-text">Prices</h4>
+			<h4 class="mb-3 border-b border-border-strong pb-2 text-sm font-semibold text-text">
+				Prices
+			</h4>
 			{#if card.prices}
 				<div class="grid grid-cols-2 gap-2 text-xs">
 					<div class="text-text-dim">USD</div>

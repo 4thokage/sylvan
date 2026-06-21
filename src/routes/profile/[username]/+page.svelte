@@ -6,15 +6,25 @@
 
 <svelte:head>
 	<title>{profile.display_name || profile.username} - Sylvan Profile</title>
-	<meta name="description" content={profile.bio ? profile.bio.slice(0, 160) : `${profile.display_name || profile.username}'s TCG collection on Sylvan`} />
+	<meta
+		name="description"
+		content={profile.bio
+			? profile.bio.slice(0, 160)
+			: `${profile.display_name || profile.username}'s TCG collection on Sylvan`}
+	/>
 	<meta property="og:title" content="{profile.display_name || profile.username} - Sylvan Profile" />
-	<meta property="og:description" content={profile.bio ? profile.bio.slice(0, 160) : 'TCG collector on Sylvan'} />
+	<meta
+		property="og:description"
+		content={profile.bio ? profile.bio.slice(0, 160) : 'TCG collector on Sylvan'}
+	/>
 </svelte:head>
 
 <div class="mx-auto max-w-4xl p-6">
 	<div class="mb-8 rounded-lg border border-border bg-surface-raised p-6">
 		<div class="flex items-start gap-6">
-			<div class="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-900 text-2xl font-bold text-accent">
+			<div
+				class="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-900 text-2xl font-bold text-accent"
+			>
 				{(profile.display_name || profile.username || '?')[0].toUpperCase()}
 			</div>
 			<div class="flex-1">
@@ -42,7 +52,9 @@
 	</div>
 
 	{#if collection.cards.length === 0}
-		<div class="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border">
+		<div
+			class="flex h-32 items-center justify-center rounded-lg border-2 border-dashed border-border"
+		>
 			<p class="text-sm text-text-muted">This collection is empty or private</p>
 		</div>
 	{:else}
@@ -51,7 +63,12 @@
 				<div class="rounded-lg border border-border bg-surface-raised p-3">
 					<div class="aspect-[5/7] mb-2 overflow-hidden rounded bg-surface-card">
 						{#if card.image_url}
-							<img src={card.image_url} alt={card.card_name} class="h-full w-full object-cover" loading="lazy" />
+							<img
+								src={card.image_url}
+								alt={card.card_name}
+								class="h-full w-full object-cover"
+								loading="lazy"
+							/>
 						{/if}
 					</div>
 					<p class="truncate text-xs text-text-soft">{card.card_name}</p>

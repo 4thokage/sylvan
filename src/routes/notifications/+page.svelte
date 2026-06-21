@@ -36,7 +36,7 @@
 	async function markAllRead() {
 		try {
 			await fetch('/api/notifications', { method: 'PATCH' });
-			notifications = notifications.map(n => ({ ...n, read_at: new Date().toISOString() }));
+			notifications = notifications.map((n) => ({ ...n, read_at: new Date().toISOString() }));
 			unreadCount = 0;
 		} catch {
 			// ignore
@@ -66,7 +66,9 @@
 
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
-			<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			<div
+				class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+			></div>
 		</div>
 	{:else if notifications.length === 0}
 		<div class="flex h-40 items-center justify-center">
@@ -75,7 +77,11 @@
 	{:else}
 		<div class="space-y-2">
 			{#each notifications as n (n.id)}
-				<div class="rounded-lg border border-border bg-surface-raised p-4 {!n.read_at ? 'border-l-2 border-l-emerald-500' : ''}">
+				<div
+					class="rounded-lg border border-border bg-surface-raised p-4 {!n.read_at
+						? 'border-l-2 border-l-emerald-500'
+						: ''}"
+				>
 					<div class="flex items-start justify-between">
 						<div>
 							<h3 class="font-medium text-text">{n.title}</h3>
@@ -83,7 +89,9 @@
 								<p class="mt-1 text-sm text-text-dim">{n.body}</p>
 							{/if}
 						</div>
-						<span class="text-xs text-text-muted">{new Date(n.created_at).toLocaleDateString()}</span>
+						<span class="text-xs text-text-muted"
+							>{new Date(n.created_at).toLocaleDateString()}</span
+						>
 					</div>
 				</div>
 			{/each}

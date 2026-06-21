@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { WishlistCard } from '$lib/types';
+	import { useClerkContext } from 'svelte-clerk';
+	import { getLocaleStore, t } from '$lib/i18n';
+	import { resolve } from '$app/paths';
 
 	interface TradeMatch {
 		wishlistId: string;
@@ -18,12 +20,9 @@
 		proposer_note: string | null;
 		recipient_note: string | null;
 		created_at: string;
-		proposer?: { id: string; display_name: string | null; username: string | null };
-		recipient?: { id: string; display_name: string | null; username: string | null };
+		proposer: { id: string; display_name: string | null; username: string | null } | null;
+		recipient: { id: string; display_name: string | null; username: string | null } | null;
 	}
-
-	import { useClerkContext } from 'svelte-clerk';
-	import { getLocaleStore, t } from '$lib/i18n';
 
 	let { data } = $props();
 	let clerkCtx = useClerkContext();
@@ -36,106 +35,16 @@
 	let activeTab = $state<'suggestions' | 'active'>('suggestions');
 	let isLoading = $state(true);
 	let isLoadingTrades = $state(true);
-	let collectionCards = $state<WishlistCard[]>([]);
 	let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
-	let selectedTrade = $state<string | null>(null);
-	let showTradeModal = $state(false);
-
-	async function loadCollection(): Promise<WishlistCard[]> {
-		try {
-			const response = await fetch('/api/collection');
-			const result = await response.json();
-			if (result.success && result.data?.cards) {
-				const raw = result.data.cards.map((c: { cardName: string; quantity: number }) => ({
-					name: c.cardName,
-					qty: c.quantity
-				}));
-				if (raw.length > 0) {
-					const lookupRes = await fetch('/api/cards/lookup', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							cards: raw,
-							game: 'mtg'
-						})
-					});
-					const lookupData = await lookupRes.json();
-					if (lookupData.success && lookupData.data?.cards) {
-						return lookupData.data.cards.map((c: any) => ({
-							name: c.name,
-							qty: c.qty,
-							imageUrl: c.imageUrl,
-							manaCost: c.manaCost,
-							prices: c.prices
-						}));
-					}
-				}
-			}
-		} catch (err) {
-			console.error('Failed to load collection', err);
-		}
-		return [];
-	}
-
-	function calculateTrades(
-		wishlists: Array<{ id: string; owner_name: string; cards: Array<{ name: string; qty: number }> }>,
-		collection: WishlistCard[]
-	): TradeMatch[] {
-		const matches: TradeMatch[] = [];
-		for (const wishlist of wishlists) {
-			const cardsYouHave: { name: string; qty: number; price: number }[] = [];
-			let valueYouGive = 0;
-			let wishlistValue = 0;
-			for (const card of wishlist.cards) {
-				const cardLower = card.name.toLowerCase();
-				const inCollection = collection.find((c) => c.name.toLowerCase() === cardLower);
-				const price = 0;
-				wishlistValue += price * card.qty;
-				if (inCollection && inCollection.qty > 0) {
-					const canGive = Math.min(card.qty, inCollection.qty);
-					cardsYouHave.push({ name: card.name, qty: canGive, price });
-					valueYouGive += price * canGive;
-				}
-			}
-			if (cardsYouHave.length > 0) {
-				const valueRatio = wishlistValue > 0 ? Math.min(valueYouGive / wishlistValue, 1) : 0;
-				const cardRatio = cardsYouHave.length / Math.max(wishlist.cards.length, 1);
-				const score = Math.round(valueRatio * 50 + cardRatio * 50);
-				matches.push({
-					wishlistId: wishlist.id,
-					wishlistOwner: wishlist.owner_name || 'Anonymous',
-					cardsYouHave,
-					valueYouGive,
-					score
-				});
-			}
-		}
-		return matches.sort((a, b) => b.score - a.score);
-	}
 
 	async function refreshTrades() {
 		isLoading = true;
 		try {
-			const wishlistsResponse = await fetch('/api/trades');
-			const wishlistsResult = await wishlistsResponse.json();
-			const wishlistsWithCards = [];
-			if (wishlistsResult.success) {
-				const wishlists = wishlistsResult.data?.wishlists || [];
-				for (const w of wishlists) {
-					try {
-						const res = await fetch(`/api/wishlists/${w.id}`);
-						const data = await res.json();
-						if (data.success && data.data?.cards) {
-							wishlistsWithCards.push({
-								id: w.id,
-								owner_name: w.owner_name,
-								cards: data.data.cards
-							});
-						}
-					} catch { /* skip */ }
-				}
+			const res = await fetch('/api/trades');
+			const result = await res.json();
+			if (result.success) {
+				tradeMatches = result.data.matches || [];
 			}
-			tradeMatches = calculateTrades(wishlistsWithCards, collectionCards);
 		} catch (err) {
 			console.error('Failed to refresh trades', err);
 		} finally {
@@ -189,18 +98,23 @@
 
 	function getStatusBadge(status: string): string {
 		switch (status) {
-			case 'pending': return 'bg-yellow-900/20 text-yellow-400';
-			case 'accepted': return 'bg-emerald-900/20 text-accent';
-			case 'rejected': return 'bg-danger-bg text-danger';
-			case 'cancelled': return 'bg-surface-card text-text-muted';
-			default: return 'bg-surface-card text-text-muted';
+			case 'pending':
+				return 'bg-yellow-900/20 text-yellow-400';
+			case 'accepted':
+				return 'bg-emerald-900/20 text-accent';
+			case 'rejected':
+				return 'bg-danger-bg text-danger';
+			case 'cancelled':
+				return 'bg-surface-card text-text-muted';
+			default:
+				return 'bg-surface-card text-text-muted';
 		}
 	}
 
 	async function sendMessage(tradeId: string) {
 		const text = prompt('Enter your message:');
 		if (!text) return;
-		const trade = userTrades.find(t => t.id === tradeId);
+		const trade = userTrades.find((t) => t.id === tradeId);
 		if (!trade) return;
 		const isProposer = trade.proposer_id === currentUserId;
 		const recipientId = isProposer ? trade.recipient_id : trade.proposer_id;
@@ -227,9 +141,6 @@
 	}
 
 	onMount(async () => {
-		if (isSignedIn) {
-			collectionCards = await loadCollection();
-		}
 		await Promise.all([refreshTrades(), loadUserTrades()]);
 	});
 </script>
@@ -241,11 +152,15 @@
 <div class="mx-auto max-w-4xl p-6">
 	<div class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-accent">{t($localeStore, 'trades.title')}</h1>
+			<h1 class="text-2xl font-semibold tracking-tight text-accent">
+				{t($localeStore, 'trades.title')}
+			</h1>
 			<p class="mt-1 text-sm text-text-muted">{t($localeStore, 'trades.findUsers')}</p>
 		</div>
 		<button
-			onclick={async () => { await Promise.all([refreshTrades(), loadUserTrades()]); }}
+			onclick={async () => {
+				await Promise.all([refreshTrades(), loadUserTrades()]);
+			}}
 			disabled={isLoading || isLoadingTrades}
 			class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
 		>
@@ -255,7 +170,9 @@
 
 	{#if message}
 		<div
-			class="mb-4 rounded-lg p-3 text-sm {message.type === 'success' ? 'bg-emerald-900/20 text-accent' : 'bg-danger-bg text-danger'}"
+			class="mb-4 rounded-lg p-3 text-sm {message.type === 'success'
+				? 'bg-emerald-900/20 text-accent'
+				: 'bg-danger-bg text-danger'}"
 		>
 			{message.text}
 		</div>
@@ -263,16 +180,22 @@
 
 	<div class="mb-6 flex gap-1 rounded-lg bg-surface-raised p-1">
 		<button
-			onclick={() => activeTab = 'suggestions'}
-			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab === 'suggestions' ? 'bg-accent-bg text-white' : 'text-text-dim hover:text-text'}"
+			onclick={() => (activeTab = 'suggestions')}
+			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab ===
+			'suggestions'
+				? 'bg-accent-bg text-white'
+				: 'text-text-dim hover:text-text'}"
 		>
 			{t($localeStore, 'trades.suggestions')}
 		</button>
 		<button
-			onclick={() => activeTab = 'active'}
-			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab === 'active' ? 'bg-accent-bg text-white' : 'text-text-dim hover:text-text'}"
+			onclick={() => (activeTab = 'active')}
+			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab === 'active'
+				? 'bg-accent-bg text-white'
+				: 'text-text-dim hover:text-text'}"
 		>
-			{t($localeStore, 'trades.myTrades')} {userTrades.length > 0 ? `(${userTrades.length})` : ''}
+			{t($localeStore, 'trades.myTrades')}
+			{userTrades.length > 0 ? `(${userTrades.length})` : ''}
 		</button>
 	</div>
 
@@ -285,7 +208,9 @@
 
 		{#if isLoading && tradeMatches.length === 0}
 			<div class="flex h-40 items-center justify-center">
-				<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+				<div
+					class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+				></div>
 			</div>
 		{:else if tradeMatches.length === 0}
 			<div class="flex h-40 items-center justify-center">
@@ -297,17 +222,26 @@
 					<div class="rounded-lg border border-border bg-surface-raised p-4">
 						<div class="mb-3 flex items-center justify-between">
 							<div>
-								<h3 class="font-medium text-text">{match.wishlistOwner}{t($localeStore, 'trades.wishlistOf')}</h3>
-								<a href="/{match.wishlistId}" class="text-sm text-accent hover:underline">
+								<h3 class="font-medium text-text">
+									{match.wishlistOwner}{t($localeStore, 'trades.wishlistOf')}
+								</h3>
+								<a
+									href={resolve(`/${match.wishlistId}`)}
+									class="text-sm text-accent hover:underline"
+								>
 									{t($localeStore, 'trades.viewWishlist')} →
 								</a>
 							</div>
 							<div class="text-right">
-								<div class="text-sm font-medium text-accent">{t($localeStore, 'trades.match')}: {match.score}%</div>
+								<div class="text-sm font-medium text-accent">
+									{t($localeStore, 'trades.match')}: {match.score}%
+								</div>
 							</div>
 						</div>
 						<div class="rounded bg-surface-card/50 p-3">
-							<h4 class="mb-2 text-xs font-medium uppercase text-text-dim">{t($localeStore, 'trades.theyWant')}</h4>
+							<h4 class="mb-2 text-xs font-medium uppercase text-text-dim">
+								{t($localeStore, 'trades.theyWant')}
+							</h4>
 							<div class="space-y-1">
 								{#each match.cardsYouHave as card (card.name)}
 									<div class="flex justify-between text-sm">
@@ -323,7 +257,9 @@
 	{:else}
 		{#if isLoadingTrades}
 			<div class="flex h-40 items-center justify-center">
-				<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+				<div
+					class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+				></div>
 			</div>
 		{:else if userTrades.length === 0}
 			<div class="flex h-40 items-center justify-center">
@@ -336,7 +272,8 @@
 						<div class="mb-3 flex items-center justify-between">
 							<div class="flex items-center gap-3">
 								<span class="text-sm text-text-soft">
-									{t($localeStore, 'trades.tradeWith')} <span class="font-medium text-text">{getOtherUserName(trade)}</span>
+									{t($localeStore, 'trades.tradeWith')}
+									<span class="font-medium text-text">{getOtherUserName(trade)}</span>
 								</span>
 								<span class="rounded-full px-2 py-0.5 text-xs {getStatusBadge(trade.status)}">
 									{trade.status}
@@ -373,7 +310,10 @@
 							</div>
 						</div>
 						<div class="flex gap-4 text-xs text-text-muted">
-							<span>{t($localeStore, 'trades.created')} {new Date(trade.created_at).toLocaleDateString()}</span>
+							<span
+								>{t($localeStore, 'trades.created')}
+								{new Date(trade.created_at).toLocaleDateString()}</span
+							>
 							{#if trade.proposer_note}
 								<span>{t($localeStore, 'trades.note')}: {trade.proposer_note}</span>
 							{/if}

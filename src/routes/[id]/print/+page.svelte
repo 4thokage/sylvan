@@ -71,9 +71,18 @@
 
 <style>
 	@media print {
-		@page { size: A4; margin: 0; }
-		.no-print { display: none !important; }
-		.print-grid { page-break-after: always; }
-		.print-grid:last-child { page-break-after: auto; }
+		@page {
+			size: A4;
+			margin: 0;
+		}
+		.no-print {
+			display: none !important;
+		}
+		.print-grid {
+			page-break-after: always;
+		}
+		.print-grid:last-child {
+			page-break-after: auto;
+		}
 	}
 </style>

@@ -49,16 +49,19 @@
 			const result = await response.json();
 
 			if (result.success && result.data?.prices) {
-				const pricesMap = new Map<string, {
-					usd: string | null;
-					usdFoil: string | null;
-					eur: string | null;
-					eurFoil: string | null;
-					tix: string | null;
-					oracleId: string | null;
-					set: string | null;
-					setName: string | null;
-				}>();
+				const pricesMap = new Map<
+					string,
+					{
+						usd: string | null;
+						usdFoil: string | null;
+						eur: string | null;
+						eurFoil: string | null;
+						tix: string | null;
+						oracleId: string | null;
+						set: string | null;
+						setName: string | null;
+					}
+				>();
 				const imageMap = new Map<string, string | null>();
 
 				for (const p of result.data.prices) {
@@ -115,13 +118,19 @@
 	<title>Sylvan - Wishlist ({cards.length} cards)</title>
 	<meta
 		name="description"
-		content={cards.slice(0, 5).map((c) => `${c.qty}x ${c.name}`).join(', ')}
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
 	/>
 	<meta property="og:type" content="website" />
 	<meta property="og:title" content="Wishlist - {cards.length} cards" />
 	<meta
 		property="og:description"
-		content={cards.slice(0, 5).map((c) => `${c.qty}x ${c.name}`).join(', ')}
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
 	/>
 	{#if cards[0]?.imageUrl}
 		<meta property="og:image" content={cards[0].imageUrl} />
@@ -130,7 +139,10 @@
 	<meta name="twitter:title" content="Wishlist - {cards.length} cards" />
 	<meta
 		name="twitter:description"
-		content={cards.slice(0, 5).map((c) => `${c.qty}x ${c.name}`).join(', ')}
+		content={cards
+			.slice(0, 5)
+			.map((c) => `${c.qty}x ${c.name}`)
+			.join(', ')}
 	/>
 	{#if cards[0]?.imageUrl}
 		<meta name="twitter:image" content={cards[0].imageUrl} />
@@ -141,10 +153,15 @@
 	<header class="border-b border-border px-6 py-4">
 		<div class="mx-auto flex max-w-7xl items-center justify-between">
 			<div>
-				<p class="mt-1 text-sm text-text-muted">{ownerName ? `${ownerName}'s Wishlist` : 'Shared Wishlist'}</p>
+				<p class="mt-1 text-sm text-text-muted">
+					{ownerName ? `${ownerName}'s Wishlist` : 'Shared Wishlist'}
+				</p>
 			</div>
 			<div class="flex items-center gap-4">
-				<a href="/{wishlist.id}/print" class="text-sm text-text-dim transition-colors hover:text-text">
+				<a
+					href="/{wishlist.id}/print"
+					class="text-sm text-text-dim transition-colors hover:text-text"
+				>
 					Print Proxies
 				</a>
 				{#if canDelete}
@@ -156,7 +173,11 @@
 						{isDeleting ? 'Deleting...' : 'Delete'}
 					</button>
 				{/if}
-				<a href="/" class="text-sm text-text-dim transition-colors hover:text-text" data-sveltekit-preload-data>
+				<a
+					href="/"
+					class="text-sm text-text-dim transition-colors hover:text-text"
+					data-sveltekit-preload-data
+				>
 					Create New →
 				</a>
 			</div>
@@ -181,15 +202,24 @@
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
 			{#each cards as card (card.name)}
 				<PriceTooltip {card}>
-					<div class="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-raised transition-all hover:scale-[1.02] hover:border-border-strong">
+					<div
+						class="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-raised transition-all hover:scale-[1.02] hover:border-border-strong"
+					>
 						{#if card.imageUrl}
-							<img src={card.imageUrl} alt={card.name} class="aspect-[5/7] w-full object-cover" loading="lazy" />
+							<img
+								src={card.imageUrl}
+								alt={card.name}
+								class="aspect-[5/7] w-full object-cover"
+								loading="lazy"
+							/>
 						{:else}
 							<div class="flex aspect-[5/7] w-full items-center justify-center bg-surface-card">
 								<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
 							</div>
 						{/if}
-						<div class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text">
+						<div
+							class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
+						>
 							×{card.qty}
 						</div>
 						<div class="border-t border-border p-2">

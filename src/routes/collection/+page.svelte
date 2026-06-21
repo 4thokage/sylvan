@@ -406,7 +406,7 @@
 					</div>
 				{:else if collectionCards.length > 0}
 					<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
-						{#each collectionCards as card (card.name)}
+						{#each collectionCards as card (card.cardPrintingId || card.name + '-' + (card.set || '') + '-' + (card.collectorNumber || ''))}
 							<CardRow {card} onClick={() => openCardEdit(card)} />
 						{/each}
 					</div>

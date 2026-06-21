@@ -323,7 +323,7 @@
 						</div>
 					{:else if hasCards}
 						<div class="max-h-[500px] space-y-2 overflow-y-auto pr-2">
-							{#each wishlistCards as card (card.name)}
+							{#each wishlistCards as card (card.cardPrintingId || card.name + '-' + (card.set || '') + '-' + (card.collectorNumber || ''))}
 								<CardRow {card} onClick={() => openCardEdit(card)} />
 							{/each}
 						</div>

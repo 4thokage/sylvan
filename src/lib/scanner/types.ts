@@ -7,30 +7,6 @@ export interface ScannedCard {
 	setName?: string;
 }
 
-export interface ScryfallCardResponse {
-	object: 'card';
-	id: string;
-	name: string;
-	image_uris: {
-		normal: string;
-		large: string;
-	} | null;
-	card_faces?: Array<{
-		name: string;
-		image_uris: {
-			normal: string;
-			large: string;
-		};
-	}>;
-	prices: {
-		usd: string | null;
-		usd_foil: string | null;
-		eur: string | null;
-	};
-	set?: string;
-	set_name?: string;
-}
-
 export type ScannerState = 'idle' | 'processing' | 'success' | 'error';
 
 export interface ScannerError {

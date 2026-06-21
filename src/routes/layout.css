@@ -2,3 +2,57 @@
 @plugin '@tailwindcss/typography';
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-surface: #09090b;
+  --color-surface-raised: #18181b;
+  --color-surface-card: #27272a;
+  --color-surface-hover: #3f3f46;
+  --color-text: #f4f4f5;
+  --color-text-soft: #d4d4d8;
+  --color-text-dim: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-accent: #34d399;
+  --color-accent-hover: #10b981;
+  --color-accent-bg: #059669;
+  --color-danger: #f87171;
+  --color-danger-bg: #450a0a;
+}
+
+:root {
+  --color-surface: #fafafa;
+  --color-surface-raised: #ffffff;
+  --color-surface-card: #f4f4f5;
+  --color-surface-hover: #e4e4e7;
+  --color-text: #18181b;
+  --color-text-soft: #3f3f46;
+  --color-text-dim: #71717a;
+  --color-text-muted: #a1a1aa;
+  --color-border: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+  --color-accent: #059669;
+  --color-accent-hover: #10b981;
+  --color-accent-bg: #059669;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+}
+
+.dark {
+  --color-surface: #09090b;
+  --color-surface-raised: #18181b;
+  --color-surface-card: #27272a;
+  --color-surface-hover: #3f3f46;
+  --color-text: #f4f4f5;
+  --color-text-soft: #d4d4d8;
+  --color-text-dim: #a1a1aa;
+  --color-text-muted: #71717a;
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-accent: #34d399;
+  --color-accent-hover: #10b981;
+  --color-accent-bg: #059669;
+  --color-danger: #f87171;
+  --color-danger-bg: #450a0a;
+}

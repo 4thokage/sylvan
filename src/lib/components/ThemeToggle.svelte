@@ -4,7 +4,7 @@
 
 <button
 	onclick={() => theme.toggle()}
-	class="flex items-center justify-center rounded-md p-2 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+	class="flex items-center justify-center rounded-md p-2 text-text-dim transition-colors hover:bg-surface-card hover:text-text"
 	aria-label="Toggle theme"
 >
 	{#if $theme === 'light'}

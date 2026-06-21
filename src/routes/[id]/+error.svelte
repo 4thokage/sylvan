@@ -6,16 +6,16 @@
 	<title>Wishlist Not Found - Sylvan Web</title>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-zinc-950 p-6 text-zinc-100">
+<div class="flex min-h-screen flex-col items-center justify-center bg-surface p-6 text-text">
 	<div class="text-center">
 		<div class="mb-6 text-8xl">🔍</div>
-		<h1 class="mb-4 text-4xl font-bold text-zinc-100">Wishlist Not Found</h1>
-		<p class="mb-8 text-lg text-zinc-400">
+		<h1 class="mb-4 text-4xl font-bold text-text">Wishlist Not Found</h1>
+		<p class="mb-8 text-lg text-text-dim">
 			The wishlist you're looking for doesn't exist or may have been deleted.
 		</p>
 		<a
 			href="/"
-			class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-3 text-white transition-colors hover:bg-emerald-500"
+			class="inline-flex items-center gap-2 rounded-lg bg-accent-bg px-6 py-3 text-white transition-colors hover:bg-accent-hover"
 			data-sveltekit-preload-data
 		>
 			<svg

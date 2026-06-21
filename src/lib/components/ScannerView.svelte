@@ -10,13 +10,14 @@
 		Target,
 		CheckCircle2,
 		AlertCircle
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import { createJSDetector, type JSContourDetector } from '$lib/scanner/jsDetector';
 	import type { Detection } from '$lib/scanner/types';
 	import type { BoundingBox } from '$lib/scanner/geometry';
 	import { extractCardRegion } from '$lib/scanner/geometry';
 	import { enhanceForMagicFonts, imageDataToDataURL } from '$lib/scanner/imageProcessing';
 	import { detectedCards, type DetectedCard } from '$lib/scanner/store';
+	import { cleanOCRText, verifyCardWithOcr } from '$lib/scanner/ocr-verifier';
 
 	interface Props {
 		onCardsChange?: (cards: DetectedCard[]) => void;
@@ -439,57 +440,7 @@
 		confidence: number,
 		detectionClass: string
 	) {
-		const attempts = [
-			cardName,
-			cardName.split('//')[0].trim(),
-			cardName.split(',')[0].trim(),
-			cardName.replace(/[^a-zA-Z0-9\s]/g, '').trim()
-		];
-
-		const uniqueAttempts = [...new Set(attempts)];
-
-		for (const attempt of uniqueAttempts) {
-			try {
-				const encodedName = encodeURIComponent(attempt);
-				const response = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodedName}`, {
-					headers: {
-						Accept: 'application/json',
-						'User-Agent': 'SylvanApp/1.0 (jsr@jose-rodrigues.info)'
-					}
-				});
-
-				if (response.ok) {
-					const data = await response.json();
-					const imageUrl =
-						data.image_uris?.normal ?? data.card_faces?.[0]?.image_uris?.normal ?? null;
-
-					const setMatch = detectionClass.match(/\[([^\]]+)\]/);
-					const detectedSet = setMatch ? setMatch[1] : data.set?.toUpperCase();
-
-					return {
-						name: data.name,
-						qty: 1,
-						imageUrl,
-						priceUsd: data.prices?.usd ?? null,
-						set: detectedSet,
-						setName: data.set_name,
-						ocrConfidence: confidence,
-						boundingBox: { x: 0, y: 0, width: 0, height: 0 }
-					};
-				}
-			} catch (err) {
-				console.log(`Scryfall attempt "${attempt}" failed:`, err);
-			}
-		}
-
-		return null;
-	}
-
-	function cleanOCRText(text: string): string {
-		return text
-			.replace(/[^a-zA-Z0-9\s\-'/,Æéèàùâêîôûäëïöüç&().]/gi, '')
-			.replace(/\s+/g, ' ')
-			.trim();
+		return verifyCardWithOcr(cardName, confidence, detectionClass);
 	}
 
 	function stopCamera() {
@@ -535,11 +486,11 @@
 
 	{#if scannerState === 'error'}
 		<div class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6">
-			<Camera class="mb-4 h-16 w-16 text-red-500" />
+			<Camera class="mb-4 h-16 w-16 text-danger" />
 			<p class="text-center text-lg font-medium text-white">{error}</p>
 			<button
 				onclick={retryCamera}
-				class="mt-4 rounded-lg bg-emerald-600 px-6 py-3 text-white transition-colors hover:bg-emerald-500"
+				class="mt-4 rounded-lg bg-accent-bg px-6 py-3 text-white transition-colors hover:bg-accent-hover"
 			>
 				Try Again
 			</button>
@@ -548,16 +499,16 @@
 
 	{#if scannerState === 'loading'}
 		<div class="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-6">
-			<Loader2 class="mb-4 h-16 w-16 animate-spin text-emerald-400" />
+			<Loader2 class="mb-4 h-16 w-16 animate-spin text-accent" />
 			<p class="text-center text-lg font-medium text-white">Loading OpenCV...</p>
-			<p class="mt-2 text-sm text-zinc-400">Initializing card detector</p>
+			<p class="mt-2 text-sm text-text-dim">Initializing card detector</p>
 		</div>
 	{/if}
 
 	{#if scannerState === 'capturing'}
 		<div class="absolute inset-0 flex items-center justify-center bg-black/30">
 			<div class="flex flex-col items-center gap-2 rounded-xl bg-black/80 px-6 py-4">
-				<ScanLine class="h-8 w-8 animate-pulse text-emerald-400" />
+				<ScanLine class="h-8 w-8 animate-pulse text-accent" />
 				<span class="text-sm font-medium text-white">Capturing {processingCard}</span>
 			</div>
 		</div>
@@ -566,7 +517,7 @@
 	{#if scannerState === 'processing'}
 		<div class="absolute inset-0 flex items-center justify-center bg-black/30">
 			<div class="flex flex-col items-center gap-2 rounded-xl bg-black/80 px-6 py-4">
-				<Loader2 class="h-8 w-8 animate-spin text-emerald-400" />
+				<Loader2 class="h-8 w-8 animate-spin text-accent" />
 				<span class="text-sm font-medium text-white">Processing OCR...</span>
 			</div>
 		</div>
@@ -576,7 +527,7 @@
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<div class="flex items-center gap-2 rounded-lg bg-black/60 px-3 py-2">
-					<Target class="h-4 w-4 text-emerald-400" />
+					<Target class="h-4 w-4 text-accent" />
 					<span class="text-sm font-medium text-white">
 						{$detectedCards.length} detected
 					</span>
@@ -584,14 +535,14 @@
 
 				{#if currentDetections.length > 0}
 					<div class="flex items-center gap-1 rounded bg-black/40 px-2 py-1">
-						<span class="text-xs text-zinc-300">{currentDetections.length} in frame</span>
+						<span class="text-xs text-text-soft">{currentDetections.length} in frame</span>
 					</div>
 				{/if}
 			</div>
 
 			<button
 				onclick={clearScannedCards}
-				class="flex items-center gap-1 rounded-lg bg-black/60 px-3 py-2 text-sm text-zinc-300 transition-colors hover:text-white"
+				class="flex items-center gap-1 rounded-lg bg-black/60 px-3 py-2 text-sm text-text-soft transition-colors hover:text-white"
 			>
 				<Trash2 class="h-4 w-4" />
 				<span>Clear</span>
@@ -601,11 +552,11 @@
 
 	{#if lastResult}
 		<div
-			class="absolute right-0 bottom-0 left-0 max-h-[60%] overflow-y-auto rounded-t-2xl bg-zinc-900 p-4 pb-6"
+			class="absolute right-0 bottom-0 left-0 max-h-[60%] overflow-y-auto rounded-t-2xl bg-surface-raised p-4 pb-6"
 		>
 			<button
 				onclick={dismissResult}
-				class="absolute top-4 right-4 rounded-full bg-zinc-800 p-1 text-zinc-400 hover:text-white"
+				class="absolute top-4 right-4 rounded-full bg-surface-card p-1 text-text-dim hover:text-white"
 			>
 				<X class="h-5 w-5" />
 			</button>
@@ -623,20 +574,20 @@
 						{/if}
 						<div class="flex-1">
 							<div class="flex items-center gap-2">
-								<CheckCircle2 class="h-5 w-5 text-emerald-400" />
+								<CheckCircle2 class="h-5 w-5 text-accent" />
 								<h3 class="text-xl font-bold text-white">{card.name}</h3>
 							</div>
 							{#if card.setName}
-								<p class="text-sm text-zinc-400">{card.setName}</p>
+								<p class="text-sm text-text-dim">{card.setName}</p>
 							{/if}
 							{#if card.priceUsd}
-								<p class="mt-2 text-lg font-semibold text-emerald-400">
+								<p class="mt-2 text-lg font-semibold text-accent">
 									${card.priceUsd}
 								</p>
 							{:else}
-								<p class="mt-2 text-sm text-zinc-500">No price available</p>
+								<p class="mt-2 text-sm text-text-muted">No price available</p>
 							{/if}
-							<p class="mt-2 text-sm text-zinc-500">
+							<p class="mt-2 text-sm text-text-muted">
 								×{card.qty} in list
 							</p>
 						</div>
@@ -647,7 +598,7 @@
 					<AlertCircle class="h-5 w-5 text-yellow-400" />
 					<p class="text-lg font-medium text-white">Could not find card</p>
 				</div>
-				<p class="mt-2 text-sm text-zinc-400">
+				<p class="mt-2 text-sm text-text-dim">
 					"{lastResult.name}" ({Math.round(lastResult.confidence)}%)
 				</p>
 			{/if}

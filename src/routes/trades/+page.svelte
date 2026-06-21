@@ -1,9 +1,6 @@
 <script lang="ts">
-	/* eslint-disable svelte/no-navigation-without-resolve */
-	import { onMount, onDestroy } from 'svelte';
-	import { supabase } from '$lib/supabase-client';
-	import { getCards, type WishlistCard } from '$lib/scryfall/api';
-	import { useClerkContext } from 'svelte-clerk/client';
+	import { onMount } from 'svelte';
+	import type { WishlistCard } from '$lib/types';
 
 	interface TradeMatch {
 		wishlistId: string;
@@ -13,217 +10,380 @@
 		score: number;
 	}
 
-	const ctx = useClerkContext();
-	const userId = $derived(ctx?.auth?.userId ?? null);
+	interface Trade {
+		id: string;
+		proposer_id: string;
+		recipient_id: string;
+		status: string;
+		proposer_note: string | null;
+		recipient_note: string | null;
+		created_at: string;
+		proposer?: { id: string; display_name: string | null; username: string | null };
+		recipient?: { id: string; display_name: string | null; username: string | null };
+	}
+
+	import { useClerkContext } from 'svelte-clerk';
+	import { getLocaleStore, t } from '$lib/i18n';
+
+	let { data } = $props();
+	let clerkCtx = useClerkContext();
+	let localeStore = getLocaleStore();
+	let currentUserId = $derived(clerkCtx.user?.id ?? data.user?.id ?? null);
+	let isSignedIn = $derived(currentUserId !== null);
 
 	let tradeMatches = $state<TradeMatch[]>([]);
+	let userTrades = $state<Trade[]>([]);
+	let activeTab = $state<'suggestions' | 'active'>('suggestions');
 	let isLoading = $state(true);
+	let isLoadingTrades = $state(true);
 	let collectionCards = $state<WishlistCard[]>([]);
-	let isRealtimeConnected = $state(false);
-	let lastUpdate = $state<Date | null>(null);
+	let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+	let selectedTrade = $state<string | null>(null);
+	let showTradeModal = $state(false);
 
-	interface WishlistData {
-		id: string;
-		owner_name: string;
-		clerk_user_id: string;
-		cards: WishlistCard[];
-	}
-
-	async function loadWishlists(): Promise<WishlistData[]> {
-		const { data: wishlists } = await supabase
-			.from('wishlists')
-			.select('id, owner_name, clerk_user_id, cards')
-			.eq('visibility', 'public')
-			.limit(100);
-
-		if (!wishlists) return [];
-
-		const enriched: WishlistData[] = [];
-		for (const w of wishlists) {
-			if (w.cards && Array.isArray(w.cards)) {
-				const result = await getCards(w.cards);
-				enriched.push({
-					id: w.id,
-					owner_name: w.owner_name || 'Anonymous',
-					clerk_user_id: w.clerk_user_id,
-					cards: result.cards
-				});
+	async function loadCollection(): Promise<WishlistCard[]> {
+		try {
+			const response = await fetch('/api/collection');
+			const result = await response.json();
+			if (result.success && result.data?.cards) {
+				const raw = result.data.cards.map((c: { cardName: string; quantity: number }) => ({
+					name: c.cardName,
+					qty: c.quantity
+				}));
+				if (raw.length > 0) {
+					const lookupRes = await fetch('/api/cards/lookup', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							cards: raw,
+							game: 'mtg'
+						})
+					});
+					const lookupData = await lookupRes.json();
+					if (lookupData.success && lookupData.data?.cards) {
+						return lookupData.data.cards.map((c: any) => ({
+							name: c.name,
+							qty: c.qty,
+							imageUrl: c.imageUrl,
+							manaCost: c.manaCost,
+							prices: c.prices
+						}));
+					}
+				}
 			}
+		} catch (err) {
+			console.error('Failed to load collection', err);
 		}
-		return enriched;
+		return [];
 	}
 
-	async function loadCollection() {
-		if (!userId) return;
-
-		const { data } = await supabase
-			.from('user_collections')
-			.select('cards')
-			.eq('clerk_user_id', userId)
-			.single();
-
-		if (data?.cards && Array.isArray(data.cards)) {
-			const result = await getCards(data.cards);
-			collectionCards = result.cards;
-		}
-	}
-
-	function calculateTrades(wishlists: WishlistData[], collection: WishlistCard[]): TradeMatch[] {
+	function calculateTrades(
+		wishlists: Array<{ id: string; owner_name: string; cards: Array<{ name: string; qty: number }> }>,
+		collection: WishlistCard[]
+	): TradeMatch[] {
 		const matches: TradeMatch[] = [];
-
 		for (const wishlist of wishlists) {
 			const cardsYouHave: { name: string; qty: number; price: number }[] = [];
-
 			let valueYouGive = 0;
 			let wishlistValue = 0;
-
 			for (const card of wishlist.cards) {
 				const cardLower = card.name.toLowerCase();
 				const inCollection = collection.find((c) => c.name.toLowerCase() === cardLower);
-
-				const price = parseFloat(card.prices?.eur || '0');
+				const price = 0;
 				wishlistValue += price * card.qty;
-
 				if (inCollection && inCollection.qty > 0) {
 					const canGive = Math.min(card.qty, inCollection.qty);
-					cardsYouHave.push({
-						name: card.name,
-						qty: canGive,
-						price
-					});
+					cardsYouHave.push({ name: card.name, qty: canGive, price });
 					valueYouGive += price * canGive;
 				}
 			}
-
 			if (cardsYouHave.length > 0) {
-				const valueRatio =
-					valueYouGive > 0 ? Math.min(valueYouGive / Math.max(wishlistValue, 0.01), 1) : 0;
+				const valueRatio = wishlistValue > 0 ? Math.min(valueYouGive / wishlistValue, 1) : 0;
 				const cardRatio = cardsYouHave.length / Math.max(wishlist.cards.length, 1);
 				const score = Math.round(valueRatio * 50 + cardRatio * 50);
-
 				matches.push({
 					wishlistId: wishlist.id,
-					wishlistOwner: wishlist.owner_name,
+					wishlistOwner: wishlist.owner_name || 'Anonymous',
 					cardsYouHave,
 					valueYouGive,
 					score
 				});
 			}
 		}
-
 		return matches.sort((a, b) => b.score - a.score);
 	}
 
 	async function refreshTrades() {
 		isLoading = true;
-		const wishlists = await loadWishlists();
-		tradeMatches = calculateTrades(wishlists, collectionCards);
-		lastUpdate = new Date();
-		isLoading = false;
+		try {
+			const wishlistsResponse = await fetch('/api/trades');
+			const wishlistsResult = await wishlistsResponse.json();
+			const wishlistsWithCards = [];
+			if (wishlistsResult.success) {
+				const wishlists = wishlistsResult.data?.wishlists || [];
+				for (const w of wishlists) {
+					try {
+						const res = await fetch(`/api/wishlists/${w.id}`);
+						const data = await res.json();
+						if (data.success && data.data?.cards) {
+							wishlistsWithCards.push({
+								id: w.id,
+								owner_name: w.owner_name,
+								cards: data.data.cards
+							});
+						}
+					} catch { /* skip */ }
+				}
+			}
+			tradeMatches = calculateTrades(wishlistsWithCards, collectionCards);
+		} catch (err) {
+			console.error('Failed to refresh trades', err);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function loadUserTrades() {
+		if (!isSignedIn) {
+			isLoadingTrades = false;
+			return;
+		}
+		try {
+			const res = await fetch('/api/trades');
+			const result = await res.json();
+			if (result.success) {
+				userTrades = result.data.trades || [];
+			}
+		} catch (err) {
+			console.error('Failed to load user trades', err);
+		} finally {
+			isLoadingTrades = false;
+		}
+	}
+
+	async function updateTradeStatus(tradeId: string, action: 'accept' | 'reject' | 'cancel') {
+		try {
+			const res = await fetch(`/api/trades/${tradeId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action })
+			});
+			const result = await res.json();
+			if (result.success) {
+				message = { type: 'success', text: `Trade ${action}ed!` };
+				setTimeout(() => (message = null), 3000);
+				await loadUserTrades();
+			} else {
+				message = { type: 'error', text: result.error?.message || 'Failed to update trade' };
+			}
+		} catch {
+			message = { type: 'error', text: 'Failed to update trade' };
+		}
+	}
+
+	function getOtherUserName(trade: Trade): string {
+		const isProposer = trade.proposer_id === currentUserId;
+		const other = isProposer ? trade.recipient : trade.proposer;
+		return other?.display_name || other?.username || 'Unknown';
+	}
+
+	function getStatusBadge(status: string): string {
+		switch (status) {
+			case 'pending': return 'bg-yellow-900/20 text-yellow-400';
+			case 'accepted': return 'bg-emerald-900/20 text-accent';
+			case 'rejected': return 'bg-danger-bg text-danger';
+			case 'cancelled': return 'bg-surface-card text-text-muted';
+			default: return 'bg-surface-card text-text-muted';
+		}
+	}
+
+	async function sendMessage(tradeId: string) {
+		const text = prompt('Enter your message:');
+		if (!text) return;
+		const trade = userTrades.find(t => t.id === tradeId);
+		if (!trade) return;
+		const isProposer = trade.proposer_id === currentUserId;
+		const recipientId = isProposer ? trade.recipient_id : trade.proposer_id;
+		try {
+			const res = await fetch('/api/messages', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					recipientId,
+					tradeId,
+					body: text
+				})
+			});
+			const result = await res.json();
+			if (result.success) {
+				message = { type: 'success', text: 'Message sent!' };
+				setTimeout(() => (message = null), 3000);
+			} else {
+				message = { type: 'error', text: result.error?.message || 'Failed to send message' };
+			}
+		} catch {
+			message = { type: 'error', text: 'Failed to send message' };
+		}
 	}
 
 	onMount(async () => {
-		await loadCollection();
-		await refreshTrades();
-
-		supabase
-			.channel('wishlists')
-			.on('postgres_changes', { event: '*', schema: 'public', table: 'wishlists' }, () => {
-				refreshTrades();
-			})
-			.subscribe((status) => {
-				isRealtimeConnected = status === 'SUBSCRIBED';
-			});
-	});
-
-	onDestroy(() => {
-		supabase.removeAllChannels();
+		if (isSignedIn) {
+			collectionCards = await loadCollection();
+		}
+		await Promise.all([refreshTrades(), loadUserTrades()]);
 	});
 </script>
 
 <svelte:head>
-	<title>Sylvan Web - Trade Suggestions</title>
+	<title>Sylvan - {t($localeStore, 'trades.title')}</title>
 </svelte:head>
 
-<div class="mx-auto max-w-7xl p-6">
+<div class="mx-auto max-w-4xl p-6">
 	<div class="mb-6 flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight text-emerald-400">Trade Suggestions</h1>
-			<p class="mt-1 text-sm text-zinc-500">
-				{#if isRealtimeConnected}
-					<span class="text-emerald-400">●</span> Live updates enabled
-				{:else}
-					Connecting to live updates...
-				{/if}
-				{#if lastUpdate}
-					<span class="ml-2">Last updated: {lastUpdate.toLocaleTimeString()}</span>
-				{/if}
-			</p>
+			<h1 class="text-2xl font-semibold tracking-tight text-accent">{t($localeStore, 'trades.title')}</h1>
+			<p class="mt-1 text-sm text-text-muted">{t($localeStore, 'trades.findUsers')}</p>
 		</div>
 		<button
-			onclick={refreshTrades}
-			disabled={isLoading}
-			class="rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white transition-colors hover:bg-emerald-500 disabled:opacity-50"
+			onclick={async () => { await Promise.all([refreshTrades(), loadUserTrades()]); }}
+			disabled={isLoading || isLoadingTrades}
+			class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
 		>
-			{isLoading ? 'Loading...' : 'Refresh'}
+			Refresh
 		</button>
 	</div>
 
-	{#if !collectionCards.length}
-		<div class="mb-6 rounded-lg bg-yellow-900/20 p-4 text-sm text-yellow-400">
-			<a href="/collection" class="underline" data-sveltekit-preload-data
-				>Sign in and import your collection</a
-			> to see personalized trade suggestions!
+	{#if message}
+		<div
+			class="mb-4 rounded-lg p-3 text-sm {message.type === 'success' ? 'bg-emerald-900/20 text-accent' : 'bg-danger-bg text-danger'}"
+		>
+			{message.text}
 		</div>
 	{/if}
 
-	{#if isLoading && tradeMatches.length === 0}
-		<div class="flex h-40 items-center justify-center">
-			<div class="text-center">
-				<div
-					class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-zinc-700 border-t-emerald-500"
-				></div>
-				<p class="text-sm text-zinc-400">Finding trade matches...</p>
-			</div>
-		</div>
-	{:else if tradeMatches.length === 0}
-		<div class="flex h-40 items-center justify-center">
-			<p class="text-zinc-400">No trade matches found yet. Create a wishlist to get started!</p>
-		</div>
-	{:else}
-		<div class="space-y-4">
-			{#each tradeMatches as match (match.wishlistId)}
-				<div class="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-					<div class="mb-3 flex items-center justify-between">
-						<div>
-							<h3 class="font-medium text-zinc-200">{match.wishlistOwner}'s Wishlist</h3>
-							<a
-								href="/{match.wishlistId}"
-								class="text-sm text-emerald-400 hover:underline"
-								data-sveltekit-preload-data
-							>
-								View wishlist →
-							</a>
-						</div>
-						<div class="text-right">
-							<div class="text-sm font-medium text-emerald-400">Match Score: {match.score}%</div>
-						</div>
-					</div>
+	<div class="mb-6 flex gap-1 rounded-lg bg-surface-raised p-1">
+		<button
+			onclick={() => activeTab = 'suggestions'}
+			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab === 'suggestions' ? 'bg-accent-bg text-white' : 'text-text-dim hover:text-text'}"
+		>
+			{t($localeStore, 'trades.suggestions')}
+		</button>
+		<button
+			onclick={() => activeTab = 'active'}
+			class="flex-1 rounded-md py-2 text-sm font-medium transition-colors {activeTab === 'active' ? 'bg-accent-bg text-white' : 'text-text-dim hover:text-text'}"
+		>
+			{t($localeStore, 'trades.myTrades')} {userTrades.length > 0 ? `(${userTrades.length})` : ''}
+		</button>
+	</div>
 
-					<div class="rounded bg-zinc-800/50 p-3">
-						<h4 class="mb-2 text-xs font-medium text-zinc-400 uppercase">
-							{match.wishlistOwner} is looking for:
-						</h4>
-						<div class="space-y-1">
-							{#each match.cardsYouHave as card (card.name)}
-								<div class="flex justify-between text-sm">
-									<span class="text-zinc-300">{card.qty}x {card.name}</span>
-								</div>
-							{/each}
+	{#if activeTab === 'suggestions'}
+		{#if !isSignedIn}
+			<div class="mb-6 rounded-lg bg-yellow-900/20 p-4 text-sm text-yellow-400">
+				{t($localeStore, 'trades.createWishlist')}
+			</div>
+		{/if}
+
+		{#if isLoading && tradeMatches.length === 0}
+			<div class="flex h-40 items-center justify-center">
+				<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			</div>
+		{:else if tradeMatches.length === 0}
+			<div class="flex h-40 items-center justify-center">
+				<p class="text-text-dim">{t($localeStore, 'trades.noMatches')}</p>
+			</div>
+		{:else}
+			<div class="space-y-4">
+				{#each tradeMatches as match (match.wishlistId)}
+					<div class="rounded-lg border border-border bg-surface-raised p-4">
+						<div class="mb-3 flex items-center justify-between">
+							<div>
+								<h3 class="font-medium text-text">{match.wishlistOwner}{t($localeStore, 'trades.wishlistOf')}</h3>
+								<a href="/{match.wishlistId}" class="text-sm text-accent hover:underline">
+									{t($localeStore, 'trades.viewWishlist')} →
+								</a>
+							</div>
+							<div class="text-right">
+								<div class="text-sm font-medium text-accent">{t($localeStore, 'trades.match')}: {match.score}%</div>
+							</div>
+						</div>
+						<div class="rounded bg-surface-card/50 p-3">
+							<h4 class="mb-2 text-xs font-medium uppercase text-text-dim">{t($localeStore, 'trades.theyWant')}</h4>
+							<div class="space-y-1">
+								{#each match.cardsYouHave as card (card.name)}
+									<div class="flex justify-between text-sm">
+										<span class="text-text-soft">{card.qty}x {card.name}</span>
+									</div>
+								{/each}
+							</div>
 						</div>
 					</div>
-				</div>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
+	{:else}
+		{#if isLoadingTrades}
+			<div class="flex h-40 items-center justify-center">
+				<div class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"></div>
+			</div>
+		{:else if userTrades.length === 0}
+			<div class="flex h-40 items-center justify-center">
+				<p class="text-text-dim">{t($localeStore, 'trades.noActiveTrades')}</p>
+			</div>
+		{:else}
+			<div class="space-y-4">
+				{#each userTrades as trade (trade.id)}
+					<div class="rounded-lg border border-border bg-surface-raised p-4">
+						<div class="mb-3 flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<span class="text-sm text-text-soft">
+									{t($localeStore, 'trades.tradeWith')} <span class="font-medium text-text">{getOtherUserName(trade)}</span>
+								</span>
+								<span class="rounded-full px-2 py-0.5 text-xs {getStatusBadge(trade.status)}">
+									{trade.status}
+								</span>
+							</div>
+							<div class="flex gap-2">
+								<button
+									onclick={() => sendMessage(trade.id)}
+									class="rounded border border-border-strong px-2 py-1 text-xs text-text-dim hover:bg-surface-card"
+								>
+									{t($localeStore, 'trades.message')}
+								</button>
+								{#if trade.status === 'pending' && trade.recipient_id === currentUserId}
+									<button
+										onclick={() => updateTradeStatus(trade.id, 'accept')}
+										class="rounded bg-accent-bg px-3 py-1 text-xs text-white hover:bg-accent-hover"
+									>
+										{t($localeStore, 'trades.accept')}
+									</button>
+									<button
+										onclick={() => updateTradeStatus(trade.id, 'reject')}
+										class="rounded bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-500"
+									>
+										{t($localeStore, 'trades.reject')}
+									</button>
+								{:else if trade.status === 'pending' && trade.proposer_id === currentUserId}
+									<button
+										onclick={() => updateTradeStatus(trade.id, 'cancel')}
+										class="rounded border border-border-strong px-3 py-1 text-xs text-text-dim hover:bg-surface-card"
+									>
+										{t($localeStore, 'trades.cancel')}
+									</button>
+								{/if}
+							</div>
+						</div>
+						<div class="flex gap-4 text-xs text-text-muted">
+							<span>{t($localeStore, 'trades.created')} {new Date(trade.created_at).toLocaleDateString()}</span>
+							{#if trade.proposer_note}
+								<span>{t($localeStore, 'trades.note')}: {trade.proposer_note}</span>
+							{/if}
+							{#if trade.recipient_note}
+								<span>Counter: {trade.recipient_note}</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </div>

@@ -11,9 +11,6 @@ export default defineConfig({
 		sveltekit(),
 		devtoolsJson(),
 		SvelteKitPWA({
-			kit: {
-				includeVersionFile: true
-			},
 			workbox: {
 				maximumFileSizeToCacheInBytes: 12 * 1024 * 1024
 			},

@@ -1,24 +1,34 @@
 <script lang="ts">
-	import type { CardPrint, WishlistCard } from '$lib/scryfall/api';
-	import { fetchAllPrintings } from '$lib/scryfall/api';
+	import type { CardPrint, WishlistCard } from '$lib/types';
 
 	interface Props {
 		card: WishlistCard;
 		onSelect: (print: CardPrint, index: number) => void;
 		isOpen?: boolean;
 		positionRef?: HTMLElement | null;
+		gameSlug?: string;
 	}
 
-	let { card, onSelect, isOpen = false, positionRef = null }: Props = $props();
+	let { card, onSelect, isOpen = false, positionRef = null, gameSlug = 'mtg' }: Props = $props();
 
 	let printings = $state<CardPrint[]>([]);
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
+	let hasFetched = $state(false);
 
 	let dropdownStyle = $state('');
 
 	$effect(() => {
-		if (isOpen && printings.length === 0 && !isLoading) {
+		card.name;
+		gameSlug;
+		printings = [];
+		isLoading = false;
+		error = null;
+		hasFetched = false;
+	});
+
+	$effect(() => {
+		if (isOpen && !isLoading && !hasFetched && printings.length === 0) {
 			loadPrintings();
 		}
 	});
@@ -30,11 +40,29 @@
 	});
 
 	async function loadPrintings() {
+		hasFetched = true;
 		isLoading = true;
 		error = null;
 
 		try {
-			printings = await fetchAllPrintings(card.name);
+			const response = await fetch(`/api/cards/printings?name=${encodeURIComponent(card.name)}&game=${encodeURIComponent(gameSlug)}`);
+			const result = await response.json();
+			if (result.success && result.data?.printings) {
+				printings = result.data.printings.map((p: Record<string, unknown>) => ({
+					id: p.id as string,
+					name: card.name,
+					set: p.setCode as string,
+					setName: p.setName as string,
+					collectorNumber: p.collectorNumber as string,
+					rarity: p.rarity as string,
+					price: p.price as string | null,
+					priceFoil: p.priceFoil as string | null,
+					imageUrl: p.imageUrl as string | null,
+					manaCost: p.manaCost as string | null
+				}));
+			} else {
+				throw new Error(result.error?.message || 'Failed to load printings');
+			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load printings';
 		} finally {
@@ -76,36 +104,36 @@
 <div class="printings-dropdown relative inline-block">
 	{#if isOpen}
 		<div
-			class="fixed z-50 max-h-96 w-80 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+			class="fixed z-50 max-h-96 w-80 overflow-hidden rounded-lg border border-border-strong bg-surface-raised shadow-xl"
 			style={dropdownStyle}
 		>
-			<div class="border-b border-zinc-700 px-3 py-2">
-				<h4 class="text-sm font-semibold text-zinc-200">Select Printing</h4>
-				<p class="text-xs text-zinc-500">{card.name} · {printings.length} printings</p>
+			<div class="border-b border-border-strong px-3 py-2">
+				<h4 class="text-sm font-semibold text-text">Select Printing</h4>
+				<p class="text-xs text-text-muted">{card.name} · {printings.length} printings</p>
 			</div>
 
 			{#if isLoading}
 				<div class="flex items-center justify-center p-8">
 					<div
-						class="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-emerald-500"
+						class="h-6 w-6 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
 					></div>
 				</div>
 			{:else if error}
 				<div class="p-4">
-					<p class="text-sm text-red-400">{error}</p>
+					<p class="text-sm text-danger">{error}</p>
 				</div>
 			{:else}
 				<div class="max-h-72 overflow-y-auto p-2">
 					{#each printings as print, index (print.id)}
 						<button
 							type="button"
-							class="flex w-full items-center gap-3 rounded p-2 text-left transition-colors hover:bg-zinc-800 {card.selectedPrintIndex ===
+							class="flex w-full items-center gap-3 rounded p-2 text-left transition-colors hover:bg-surface-card {card.selectedPrintIndex ===
 							index
-								? 'bg-zinc-800'
+								? 'bg-surface-card'
 								: ''}"
 							onclick={() => selectPrint(print, index)}
 						>
-							<div class="h-16 w-12 flex-shrink-0 overflow-hidden rounded bg-zinc-800">
+							<div class="h-16 w-12 flex-shrink-0 overflow-hidden rounded bg-surface-card">
 								{#if print.imageUrl}
 									<img
 										src={print.imageUrl}
@@ -117,8 +145,8 @@
 							</div>
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center gap-2">
-									<span class="text-xs font-medium text-zinc-300 uppercase">{print.set}</span>
-									<span class="text-xs text-zinc-500">#{print.collectorNumber}</span>
+									<span class="text-xs font-medium text-text-soft uppercase">{print.set}</span>
+									<span class="text-xs text-text-muted">#{print.collectorNumber}</span>
 									<span
 										class="rounded px-1 py-0.5 text-[10px] uppercase {print.rarity === 'mythic'
 											? 'bg-orange-900/50 text-orange-300'
@@ -131,11 +159,11 @@
 										{print.rarity}
 									</span>
 								</div>
-								<p class="truncate text-xs text-zinc-400">{print.setName}</p>
+								<p class="truncate text-xs text-text-dim">{print.setName}</p>
 								<div class="mt-1 flex gap-3">
-									<span class="text-xs text-zinc-300">{formatPrice(print.price)}</span>
+									<span class="text-xs text-text-soft">{formatPrice(print.price)}</span>
 									{#if print.priceFoil}
-										<span class="text-xs text-emerald-400">{formatPrice(print.priceFoil)} foil</span
+										<span class="text-xs text-accent">{formatPrice(print.priceFoil)} foil</span
 										>
 									{/if}
 								</div>

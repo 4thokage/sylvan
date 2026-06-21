@@ -1,114 +1,62 @@
 import type { RequestHandler } from './$types';
-import { fetchCardsByIdentifiers, type CardIdentifier } from '$lib/scryfall/api';
+import { json } from '@sveltejs/kit';
+import { PriceRequestSchema } from '$lib/schemas/api';
+import { searchRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
+import { resolveCards } from '$lib/api/card-service';
 
-interface CardInput {
-	name: string;
-	set?: string;
-	collector_number?: string;
-	selectedPrintIndex?: number;
-}
+export const POST: RequestHandler = async (event) => {
+  const { request } = event;
+  const rateCheck = searchRateLimiter(event);
+  if (!rateCheck.passed) {
+    return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
+  }
 
-export const POST: RequestHandler = async ({ request }) => {
-	try {
-		const data = await request.json();
-		const cards = data.cards as CardInput[];
+  try {
+    const body = await request.json();
+    const parsed = PriceRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return json(
+        { success: false, error: { message: 'Invalid input', details: parsed.error.issues } },
+        { status: 400 }
+      );
+    }
 
-		if (!cards || cards.length === 0) {
-			return new Response(
-				JSON.stringify({ success: false, error: { message: 'No cards provided' } }),
-				{
-					status: 400,
-					headers: { 'Content-Type': 'application/json' }
-				}
-			);
-		}
+    const { cards, gameSlug } = parsed.data;
 
-		const cardsWithPrintSelection = cards.filter((c) => c.selectedPrintIndex !== undefined);
-		const cardsWithoutPrintSelection = cards.filter((c) => c.selectedPrintIndex === undefined);
+    const resolved = await resolveCards(
+      gameSlug,
+      cards.map((c) => ({
+        name: c.name,
+        qty: 1,
+        set: c.set,
+        collector_number: c.collector_number
+      }))
+    );
 
-		console.log('[PriceAPI] Cards with print selection:', cardsWithPrintSelection.length);
-		console.log('[PriceAPI] Cards without print selection:', cardsWithoutPrintSelection.length);
+    const prices = cards.map((card) => {
+      const found = resolved.find((r) => r.name.toLowerCase() === card.name.toLowerCase());
+      return {
+        name: card.name,
+        selectedPrintIndex: card.selectedPrintIndex,
+        isSelected: card.selectedPrintIndex !== undefined,
+        prices: found?.prices
+          ? {
+              usd: found.prices.usd ?? null,
+              usdFoil: found.prices.usdFoil ?? null,
+              eur: found.prices.eur ?? null,
+              eurFoil: found.prices.eurFoil ?? null,
+              tix: null
+            }
+          : null,
+        imageUrl: found?.imageUrl || null,
+        manaCost: found?.manaCost || null
+      };
+    });
 
-		const identifiers: CardIdentifier[] = cards.map((card) => ({
-			name: card.name,
-			...(card.set && { set: card.set.toLowerCase() }),
-			...(card.collector_number && { collector_number: card.collector_number })
-		}));
-
-		const { cards: scryfallCards } = await fetchCardsByIdentifiers(identifiers);
-
-		console.log('[PriceAPI] Scryfall returned cards:', scryfallCards.length);
-
-		const pricesMap = new Map<
-			string,
-			{
-				usd: string | null;
-				usdFoil: string | null;
-				eur: string | null;
-				eurFoil: string | null;
-				tix: string | null;
-				oracleId: string | null;
-				set: string | null;
-				setName: string | null;
-			}
-		>();
-
-		const cardDetailsMap = new Map<
-			string,
-			{
-				imageUrl: string | null;
-				manaCost: string | null;
-			}
-		>();
-
-		for (const card of scryfallCards) {
-			const key = card.name.toLowerCase();
-			const imageUrl = card.image_uris?.normal ?? card.card_faces?.[0]?.image_uris?.normal ?? null;
-			const manaCost = card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null;
-
-			if (!pricesMap.has(key)) {
-				pricesMap.set(key, {
-					usd: card.prices.usd,
-					usdFoil: card.prices.usd_foil,
-					eur: card.prices.eur,
-					eurFoil: card.prices.eur_foil,
-					tix: card.prices.tix,
-					oracleId: card.oracle_id,
-					set: card.set,
-					setName: card.set_name
-				});
-
-				cardDetailsMap.set(key, { imageUrl, manaCost });
-			}
-		}
-
-		const prices = cards.map((card) => {
-			const key = card.name.toLowerCase();
-			const isSelected = card.selectedPrintIndex !== undefined;
-
-			return {
-				name: card.name,
-				selectedPrintIndex: card.selectedPrintIndex,
-				isSelected,
-				prices: pricesMap.get(key) || null,
-				imageUrl: cardDetailsMap.get(key)?.imageUrl || null,
-				manaCost: cardDetailsMap.get(key)?.manaCost || null
-			};
-		});
-
-		console.log('[PriceAPI] Returning prices:', prices.length);
-
-		return new Response(JSON.stringify({ success: true, data: { prices } }), {
-			status: 200,
-			headers: { 'Content-Type': 'application/json' }
-		});
-	} catch (err) {
-		const message = err instanceof Error ? err.message : 'Failed to fetch prices';
-		console.error('[PriceAPI] Error:', err);
-		console.error('[PriceAPI] Stack:', err instanceof Error ? err.stack : 'no stack');
-		return new Response(JSON.stringify({ success: false, error: { message } }), {
-			status: 500,
-			headers: { 'Content-Type': 'application/json' }
-		});
-	}
+    return json({ success: true, data: { prices } });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch prices';
+    console.error('[PriceAPI] Error:', err);
+    return json({ success: false, error: { message } }, { status: 500 });
+  }
 };

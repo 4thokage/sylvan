@@ -1,6 +1,9 @@
 allowBuilds:
   '@clerk/shared': true
+  esbuild: set this to true or false
+  sharp: set this to true or false
   tesseract.js: true
+  workerd: set this to true or false
 onlyBuiltDependencies:
   - '@clerk/shared'
   - esbuild

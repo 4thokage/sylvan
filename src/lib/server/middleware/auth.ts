@@ -1,11 +1,11 @@
-import { error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 
-export async function requireAuth(event: RequestEvent): Promise<string> {
+export async function requireAuth(event: RequestEvent): Promise<string | Response> {
 	const auth = await event.locals.auth();
 	const clerkUserId = auth.userId;
 	if (!clerkUserId) {
-		throw error(401, { success: false, error: { message: 'Authentication required' } });
+		return json({ success: false, error: { message: 'Authentication required' } }, { status: 401 });
 	}
 	return clerkUserId;
 }

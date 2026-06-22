@@ -11,6 +11,7 @@ const BlockSchema = z.object({
 
 export const GET: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 
 	const { data: user } = await supabase
 		.from('users')
@@ -33,6 +34,7 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
@@ -80,6 +82,7 @@ export const POST: RequestHandler = async (event) => {
 export const DELETE: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 
 	const { data: user } = await supabase
 		.from('users')

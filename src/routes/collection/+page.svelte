@@ -76,57 +76,59 @@
 			const response = await fetch(`/api/collection?game=${selectedGame}`);
 			const result = await response.json();
 			if (result.success && result.data?.cards) {
-				const raw = result.data.cards.map(
+				const cards = result.data.cards.map(
 					(c: {
 						cardName: string;
 						quantity: number;
 						cardPrintingId: string;
+						imageUrl: string | null;
 						condition: string;
 						isFoil: boolean;
 						isSigned: boolean;
 						isAltered: boolean;
 						language: string;
 						isTradeable: boolean;
+						marketPriceUsd: number | null;
+						marketPriceEur: number | null;
+						setCode: string | null;
+						collectorNumber: string | null;
+						oracleId: string | null;
 					}) => ({
 						name: c.cardName,
 						qty: c.quantity,
+						imageUrl: c.imageUrl,
 						cardPrintingId: c.cardPrintingId,
 						condition: c.condition,
 						isFoil: c.isFoil,
 						isSigned: c.isSigned,
 						isAltered: c.isAltered,
 						language: c.language,
-						isTradeable: c.isTradeable
+						isTradeable: c.isTradeable !== false,
+						prices: {
+							usd: c.marketPriceUsd?.toFixed(2) ?? null,
+							usdFoil: null,
+							eur: c.marketPriceEur?.toFixed(2) ?? null,
+							eurFoil: null,
+							tix: null
+						} as WishlistCard['prices'],
+						set: c.setCode || undefined,
+						collectorNumber: c.collectorNumber || undefined,
+						oracleId: c.oracleId || undefined,
+						manaCost: null
 					})
 				);
-				// Dedupe by cardPrintingId (merge quantities) to handle legacy duplicates
-				const dedupedRaw: Record<string, (typeof raw)[0]> = {};
-				for (const r of raw) {
-					const key = r.cardPrintingId || r.name;
-					if (dedupedRaw[key]) {
-						dedupedRaw[key].qty += r.qty;
+
+				const deduped: Record<string, (typeof cards)[0]> = {};
+				for (const c of cards) {
+					const key = c.cardPrintingId || c.name;
+					if (deduped[key]) {
+						deduped[key].qty += c.qty;
 					} else {
-						dedupedRaw[key] = { ...r };
+						deduped[key] = { ...c };
 					}
 				}
-				const uniqueRaw = Object.values(dedupedRaw);
-				if (uniqueRaw.length > 0) {
-					const lookupRes = await fetch('/api/cards/lookup', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							cards: uniqueRaw,
-							game: selectedGame
-						})
-					});
-					const lookupData = await lookupRes.json();
-					if (lookupData.success && lookupData.data?.cards) {
-						collectionCards = lookupData.data.cards.map((c: LookupResult, i: number) => ({
-							...makeCardDefaults(c),
-							...uniqueRaw[i]
-						}));
-					}
-				}
+
+				collectionCards = Object.values(deduped);
 			}
 		} catch (err) {
 			console.error('Failed to load collection', err);

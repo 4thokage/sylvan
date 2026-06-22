@@ -2,7 +2,6 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
-import { supabase } from '$lib/server/supabase';
 import { z } from 'zod/v4';
 
 const UpdateTradeStatusSchema = z.object({
@@ -19,6 +18,7 @@ const CounterOfferSchema = z.object({
 export const GET: RequestHandler = async (event) => {
 	const { params } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	try {
 		const trade = await getTradeById(params.id);
 		if (!trade) {
@@ -34,6 +34,7 @@ export const GET: RequestHandler = async (event) => {
 export const PATCH: RequestHandler = async (event) => {
 	const { params, request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'

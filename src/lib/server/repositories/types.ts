@@ -152,6 +152,8 @@ export interface TradeRepository {
 	getUserIdByClerkId(clerkUserId: string): Promise<string | null>;
 	getPublicWishlists(limit?: number, offset?: number): Promise<Array<WishlistRow>>;
 	getWishlistItems(wishlistIds: string[]): Promise<WishlistItemRow[]>;
+	getWishlistItemsByCardIds(cardIds: string[]): Promise<WishlistItemRow[]>;
+	getCardIdsByPrintingIds(printingIds: string[]): Promise<Array<{ id: string; card_id: string }>>;
 	getCardPrintingPrices(cardIds: string[]): Promise<Array<{ cardId: string; price: number }>>;
 	createTrade(trade: {
 		proposer_id: string;

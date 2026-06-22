@@ -5,6 +5,7 @@ import { supabase } from '$lib/server/supabase';
 
 export const GET: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 
 	const { data: user } = await supabase
 		.from('users')
@@ -30,6 +31,7 @@ export const GET: RequestHandler = async (event) => {
 
 export const PATCH: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 
 	const { data: user } = await supabase
 		.from('users')

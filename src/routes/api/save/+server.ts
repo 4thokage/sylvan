@@ -3,8 +3,8 @@ import { json } from '@sveltejs/kit';
 import { SaveWishlistSchema } from '$lib/schemas/api';
 import { saveRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { getOptionalAuth } from '$lib/server/middleware/auth';
+import { resolveCards } from '$lib/server/services/card-resolver.service';
 import { createWishlist } from '$lib/server/services/wishlist.service';
-import { findOrCreateCard } from '$lib/server/services/card.service';
 import { supabase } from '$lib/server/supabase';
 
 export const POST: RequestHandler = async (event) => {
@@ -38,58 +38,34 @@ export const POST: RequestHandler = async (event) => {
 			return json({ success: false, error: { message: 'Game not found' } }, { status: 400 });
 		}
 
-		const resolvedCards: Array<{
-			card_id: string;
-			qty: number;
-			card_printing_id?: string | null;
-			condition?: string;
-			is_foil?: boolean;
-			is_signed?: boolean;
-			is_altered?: boolean;
-			language?: string;
-		}> = [];
-
-		for (const card of cards) {
-			const cardResult = await findOrCreateCard(
-				gameSlugValue,
-				card.name,
-				card.set,
-				card.collector_number,
-				card.oracleId || null
-			);
-
-			if (!cardResult) {
-				return json(
-					{
-						success: false,
-						error: { message: `Card not found: ${card.name}` }
-					},
-					{ status: 400 }
-				);
-			}
-
-			let printingId: string | null = card.cardPrintingId || null;
-			if (!printingId && card.set && card.collector_number) {
-				const match = cardResult.printings.find(
-					(p) => p.setCode === card.set && p.collectorNumber === card.collector_number
-				);
-				if (match) printingId = match.id;
-			}
-			if (!printingId && cardResult.printings.length > 0) {
-				printingId = cardResult.printings[0].id;
-			}
-
-			resolvedCards.push({
-				card_id: cardResult.id,
-				qty: card.qty,
-				card_printing_id: printingId,
-				condition: card.condition || 'NM',
-				is_foil: card.isFoil || false,
-				is_signed: card.isSigned || false,
-				is_altered: card.isAltered || false,
-				language: card.language || 'en'
-			});
+		const cardResults = await resolveCards(
+			gameSlugValue,
+			cards.map((c: Record<string, unknown>) => ({
+				name: c.name as string,
+				qty: c.qty as number,
+				set: c.set as string | undefined,
+				collectorNumber: c.collector_number as string | undefined,
+				oracleId: (c.oracleId as string | null) || undefined,
+				cardPrintingId: c.cardPrintingId as string | null | undefined
+			}))
+		);
+		if (cardResults.errors.length > 0) {
+			return json({ success: false, error: { message: cardResults.errors[0] } }, { status: 400 });
 		}
+
+		const resolvedCards = cardResults.resolved.map((c) => {
+			const input = cards.find((cr: { name: string }) => cr.name === c.cardName);
+			return {
+				card_id: c.cardId,
+				qty: c.qty,
+				card_printing_id: c.printingId,
+				condition: input?.condition || 'NM',
+				is_foil: input?.isFoil || false,
+				is_signed: input?.isSigned || false,
+				is_altered: input?.isAltered || false,
+				language: input?.language || 'en'
+			};
+		});
 
 		const id = await createWishlist({
 			cards: resolvedCards,

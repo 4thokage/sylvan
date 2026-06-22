@@ -1,7 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
-import { supabase } from '$lib/server/supabase';
 import {
 	createTradeProposal,
 	getTradesForUser,
@@ -9,7 +8,9 @@ import {
 } from '$lib/server/services/trade.service';
 import { getCollection } from '$lib/server/services/collection.service';
 import { listPublicWishlists } from '$lib/server/services/wishlist.service';
+import { requireAuth, getOptionalAuth } from '$lib/server/middleware/auth';
 import { TradeProposalSchema } from '$lib/schemas/api';
+import { tradeRepository } from '$lib/server/repositories/trade.repository';
 
 export const GET: RequestHandler = async (event) => {
 	const rateCheck = apiRateLimiter(event);
@@ -38,15 +39,11 @@ export const GET: RequestHandler = async (event) => {
 			}))
 		);
 
-		const { data: user } = await supabase
-			.from('users')
-			.select('id')
-			.eq('clerk_user_id', clerkUserId)
-			.single();
+		const userId = await tradeRepository.getUserIdByClerkId(clerkUserId);
 
 		return json({
 			success: true,
-			data: { trades, matches, userId: user?.id }
+			data: { trades, matches, userId }
 		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Failed to load trades';
@@ -57,6 +54,7 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter(event);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 

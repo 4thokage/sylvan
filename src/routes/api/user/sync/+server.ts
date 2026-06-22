@@ -6,6 +6,7 @@ import { requireAuth } from '$lib/server/middleware/auth';
 
 export const POST: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter(event);
 	if (!rateCheck.passed) {
 		return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);

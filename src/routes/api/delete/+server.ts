@@ -7,6 +7,7 @@ import { deleteWishlist } from '$lib/server/services/wishlist.service';
 export const DELETE: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'

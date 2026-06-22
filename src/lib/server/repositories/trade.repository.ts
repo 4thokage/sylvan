@@ -39,6 +39,24 @@ export const tradeRepository: TradeRepository = {
 		return (items || []) as WishlistItemRow[];
 	},
 
+	async getWishlistItemsByCardIds(cardIds: string[]) {
+		const { data: items } = await supabase
+			.from('wishlist_items')
+			.select('*')
+			.in('card_id', cardIds);
+
+		return (items || []) as WishlistItemRow[];
+	},
+
+	async getCardIdsByPrintingIds(printingIds: string[]) {
+		const { data: printings } = await supabase
+			.from('card_printings')
+			.select('id, card_id')
+			.in('id', printingIds);
+
+		return (printings || []) as Array<{ id: string; card_id: string }>;
+	},
+
 	async getCardPrintingPrices(cardIds: string[]) {
 		const { data: prices } = await supabase
 			.from('card_printings')

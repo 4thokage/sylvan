@@ -45,6 +45,7 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'

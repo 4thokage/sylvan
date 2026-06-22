@@ -6,6 +6,7 @@ import { getCollection } from '$lib/server/services/collection.service';
 export const GET: RequestHandler = async (event) => {
 	const { url } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	try {
 		const cards = await getCollection(clerkUserId);
 		const format = url.searchParams.get('format') || 'json';

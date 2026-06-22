@@ -14,6 +14,11 @@ export interface CollectionCard {
 	isAltered: boolean;
 	language: string;
 	isTradeable: boolean;
+	marketPriceUsd: number | null;
+	marketPriceEur: number | null;
+	setCode: string | null;
+	collectorNumber: string | null;
+	oracleId: string | null;
 }
 
 async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
@@ -22,23 +27,53 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 	const printingIds = cards.map((c) => c.card_printing_id);
 	const { data: printings } = await supabase
 		.from('card_printings')
-		.select('id, image_url, cards(name)')
+		.select(
+			'id, image_url, set_code, collector_number, market_price_usd, market_price_eur, cards(name, oracle_id)'
+		)
 		.in('id', printingIds);
 
-	const printingMap = new Map<string, { imageUrl: string | null; cardName: string }>();
+	const printingMap = new Map<
+		string,
+		{
+			imageUrl: string | null;
+			cardName: string;
+			oracleId: string | null;
+			setCode: string | null;
+			collectorNumber: string | null;
+			marketPriceUsd: number | null;
+			marketPriceEur: number | null;
+		}
+	>();
 	for (const p of (printings || []) as unknown as Array<{
 		id: string;
 		image_url: string | null;
-		cards: { name: string } | null;
+		set_code: string | null;
+		collector_number: string | null;
+		market_price_usd: number | null;
+		market_price_eur: number | null;
+		cards: { name: string; oracle_id: string | null } | null;
 	}>) {
 		printingMap.set(p.id, {
 			imageUrl: p.image_url || null,
-			cardName: p.cards?.name || 'Unknown'
+			cardName: p.cards?.name || 'Unknown',
+			oracleId: p.cards?.oracle_id || null,
+			setCode: p.set_code || null,
+			collectorNumber: p.collector_number || null,
+			marketPriceUsd: p.market_price_usd,
+			marketPriceEur: p.market_price_eur
 		});
 	}
 
 	return cards.map((c) => {
-		const info = printingMap.get(c.card_printing_id) || { imageUrl: null, cardName: 'Unknown' };
+		const info = printingMap.get(c.card_printing_id) || {
+			imageUrl: null,
+			cardName: 'Unknown',
+			oracleId: null,
+			setCode: null,
+			collectorNumber: null,
+			marketPriceUsd: null,
+			marketPriceEur: null
+		};
 		return {
 			id: c.id,
 			cardPrintingId: c.card_printing_id,
@@ -50,7 +85,12 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 			isSigned: c.is_signed,
 			isAltered: c.is_altered,
 			language: c.language,
-			isTradeable: c.is_tradeable
+			isTradeable: c.is_tradeable,
+			marketPriceUsd: info.marketPriceUsd,
+			marketPriceEur: info.marketPriceEur,
+			setCode: info.setCode,
+			collectorNumber: info.collectorNumber,
+			oracleId: info.oracleId
 		};
 	});
 }

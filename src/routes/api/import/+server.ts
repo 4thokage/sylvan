@@ -2,34 +2,15 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { saveRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
+import { resolveCards } from '$lib/server/services/card-resolver.service';
 import { replaceCollection, saveCollection } from '$lib/server/services/collection.service';
-import { findOrCreateCard } from '$lib/server/services/card.service';
 import { supabase } from '$lib/server/supabase';
 import { parseCardList, parseCsv, parseDeckbox } from '$lib/parser';
-
-async function resolveCardPrintingIds(
-	cards: Array<{ name: string; qty: number }>,
-	gameSlug: string
-): Promise<Array<{ card_printing_id: string; quantity: number }>> {
-	const resolved: Array<{ card_printing_id: string; quantity: number }> = [];
-
-	for (const card of cards) {
-		const cardResult = await findOrCreateCard(gameSlug, card.name);
-
-		if (!cardResult) continue;
-
-		const printing = cardResult.printings[0];
-		if (!printing) continue;
-
-		resolved.push({ card_printing_id: printing.id, quantity: card.qty });
-	}
-
-	return resolved;
-}
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = saveRateLimiter(event);
 	if (!rateCheck.passed) {
 		return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
@@ -80,17 +61,30 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 
-		const resolved = await resolveCardPrintingIds(parsedCards, gameSlug);
-		if (resolved.length === 0) {
+		const cardResults = await resolveCards(gameSlug, parsedCards);
+		if (cardResults.resolved.length === 0) {
 			return json(
-				{ success: false, error: { message: 'No valid card names could be resolved' } },
+				{
+					success: false,
+					error: {
+						message: cardResults.errors.join(', ') || 'No valid card names could be resolved'
+					}
+				},
 				{ status: 400 }
 			);
 		}
 
+		const resolved = cardResults.resolved.map((r) => ({
+			card_printing_id: r.printingId,
+			quantity: r.qty
+		}));
+
 		if (merge) {
 			const result = await saveCollection(clerkUserId, resolved, gameSlug);
-			return json({ success: true, data: { count: resolved.length, errors: result.errors } });
+			return json({
+				success: true,
+				data: { count: resolved.length, errors: [...result.errors, ...cardResults.errors] }
+			});
 		} else {
 			await replaceCollection(clerkUserId, resolved, gameSlug);
 			return json({ success: true, data: { count: resolved.length } });

@@ -1,6 +1,5 @@
 import type { TradeRepository, WishlistRow } from '$lib/server/repositories/types';
 import { tradeRepository as defaultRepo } from '$lib/server/repositories/trade.repository';
-import { supabase } from '$lib/server/supabase';
 
 export interface TradeMatch {
 	wishlistId: string;
@@ -20,13 +19,10 @@ export async function findMatchesForCollection(
 	const printingIds = collection.filter((c) => c.isTradeable).map((c) => c.cardPrintingId);
 	if (printingIds.length === 0) return [];
 
-	const { data: printings } = await supabase
-		.from('card_printings')
-		.select('id, card_id')
-		.in('id', printingIds);
+	const printings = await r.getCardIdsByPrintingIds(printingIds);
 
 	const cardIdByPrinting = new Map<string, string>();
-	for (const p of (printings || []) as Array<{ id: string; card_id: string }>) {
+	for (const p of printings) {
 		cardIdByPrinting.set(p.id, p.card_id);
 	}
 
@@ -113,27 +109,20 @@ export async function findUsersWhoWantCards(
 ): Promise<TradeMatch[]> {
 	const r = repo || defaultRepo;
 
-	const { data: printings } = await supabase
-		.from('card_printings')
-		.select('id, card_id')
-		.in('id', cardPrintingIds);
-
-	const cardIds = ((printings || []) as Array<{ id: string; card_id: string }>).map(
-		(p) => p.card_id
-	);
+	const printings = await r.getCardIdsByPrintingIds(cardPrintingIds);
+	const cardIds = printings.map((p) => p.card_id);
 	if (cardIds.length === 0) return [];
 
-	const items = await r.getWishlistItems([]);
-	const filtered = items.filter((i) => cardIds.includes(i.card_id));
-	if (filtered.length === 0) return [];
+	const items = await r.getWishlistItemsByCardIds(cardIds);
+	if (items.length === 0) return [];
 
-	const wishlistIds = [...new Set(filtered.map((i) => i.wishlist_id))];
+	const wishlistIds = [...new Set(items.map((i) => i.wishlist_id))];
 	const wishlists = (await r.getPublicWishlists(200, 0)).filter(
-		(w: WishlistRow) => wishlistIds.includes(w.id) && w.user_id !== currentUserId
+		(w) => wishlistIds.includes(w.id) && w.user_id !== currentUserId
 	);
 
-	return wishlists.map((w: WishlistRow) => {
-		const wantedItems = filtered.filter((i) => i.wishlist_id === w.id);
+	return wishlists.map((w) => {
+		const wantedItems = items.filter((i) => i.wishlist_id === w.id);
 		const cardsYouHave = wantedItems.map((i) => ({
 			name: i.card_id,
 			qty: i.quantity,

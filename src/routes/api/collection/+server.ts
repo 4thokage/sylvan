@@ -95,6 +95,7 @@ async function resolveCardPrintings(
 export const GET: RequestHandler = async (event) => {
 	const { url } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const gameSlug = url.searchParams.get('game') || 'mtg';
 	const cards = await getCollection(clerkUserId, gameSlug);
 	return json({ success: true, data: { cards } });
@@ -103,6 +104,7 @@ export const GET: RequestHandler = async (event) => {
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
@@ -132,6 +134,7 @@ export const POST: RequestHandler = async (event) => {
 export const DELETE: RequestHandler = async (event) => {
 	const { url } = event;
 	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
 	const gameSlug = url.searchParams.get('game') || undefined;
 	await clearCollection(clerkUserId, gameSlug);
 	return json({ success: true });

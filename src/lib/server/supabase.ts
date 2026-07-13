@@ -12,8 +12,23 @@ if (!env.SUPABASE_ANON_KEY) {
 
 // Server-side Supabase client uses the anon key + Clerk JWT so Row Level Security is enforced.
 // Complex operations that cross ownership boundaries (trade lifecycle, anonymous wishlist ops)
-// are performed via security-definer RPC functions.
+// are performed via security-definable RPC functions.
 export const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+
+// Privileged client (bypasses RLS) for trusted server-side operations that are already scoped
+// by an explicit user identifier (e.g. user provisioning). Avoids forwarding the Clerk JWT,
+// which Supabase cannot verify, so these queries never fail with "No suitable key or wrong key type".
+const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+export const supabaseService = serviceRoleKey
+	? createClient(env.SUPABASE_URL, serviceRoleKey, { auth: { persistSession: false } })
+	: null;
+
+export function getServiceSupabase(): SupabaseClient {
+	if (!supabaseService) {
+		throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY environment variable');
+	}
+	return supabaseService;
+}
 
 const supabaseContext = new AsyncLocalStorage<SupabaseClient>();
 

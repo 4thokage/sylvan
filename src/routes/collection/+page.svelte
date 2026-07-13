@@ -449,6 +449,7 @@
 					</button>
 				</div>
 			</div>
+			</div>
 
 			<div class="space-y-4">
 				<div class="flex items-center justify-between">

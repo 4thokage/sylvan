@@ -1,13 +1,13 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { requireUser } from '$lib/server/middleware/auth';
-import { getSupabase } from '$lib/server/supabase';
+import { getServiceSupabase } from '$lib/server/supabase';
 
 export const GET: RequestHandler = async (event) => {
 	const authUser = await requireUser(event);
 	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { data: notifications } = await getSupabase()
+	const { data: notifications } = await 	getServiceSupabase()
 		.from('notifications')
 		.select('*')
 		.eq('user_id', authUser.dbUserId)
@@ -26,7 +26,7 @@ export const PATCH: RequestHandler = async (event) => {
 	const authUser = await requireUser(event);
 	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { error } = await getSupabase()
+	const { error } = await 	getServiceSupabase()
 		.from('notifications')
 		.update({ read_at: new Date().toISOString() })
 		.eq('user_id', authUser.dbUserId)

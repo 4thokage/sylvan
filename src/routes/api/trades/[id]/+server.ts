@@ -1,17 +1,30 @@
 import type { RequestHandler } from './$types';
+import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
+import {
+	getTradeDetails,
+	getCounterpartyStacks,
+	updateTradeStatus,
+	createCounterOffer
+} from '$lib/server/services/trade.service';
+import { tradeRepository } from '$lib/server/repositories/trade.repository';
 import { z } from 'zod/v4';
 
-const UpdateTradeStatusSchema = z.object({
-	status: z.enum(['accepted', 'rejected', 'cancelled'])
+const StatusUpdateSchema = z.object({
+	action: z.enum(['accept', 'reject', 'cancel'])
+});
+
+const TradeItemSchema = z.object({
+	userCardId: z.string().uuid(),
+	quantity: z.number().int().min(1).max(99999)
 });
 
 const CounterOfferSchema = z.object({
 	action: z.literal('counter'),
-	offeredCardIds: z.array(z.string().uuid()).min(1).max(200),
-	requestedCardIds: z.array(z.string().uuid()).min(1).max(200),
+	offeredItems: z.array(TradeItemSchema).min(1).max(200),
+	requestedItems: z.array(TradeItemSchema).max(200).default([]),
 	note: z.string().max(2000).optional()
 });
 
@@ -20,11 +33,15 @@ export const GET: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
 	if (typeof clerkUserId !== 'string') return clerkUserId;
 	try {
-		const trade = await getTradeById(params.id);
+		const [trade, counterpartyStacks] = await Promise.all([
+			getTradeDetails(params.id),
+			getCounterpartyStacks(params.id)
+		]);
 		if (!trade) {
 			return json({ success: false, error: { message: 'Trade not found' } }, { status: 404 });
 		}
-		return json({ success: true, data: { trade } });
+		const userId = await tradeRepository.getUserIdByClerkId(clerkUserId);
+		return json({ success: true, data: { trade, counterpartyStacks, userId } });
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Failed to load trade';
 		return json({ success: false, error: { message } }, { status: 500 });
@@ -38,26 +55,24 @@ export const PATCH: RequestHandler = async (event) => {
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
-	} as any);
+	} as unknown as RequestEvent);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
 	try {
 		const body = await request.json();
 
-		// Check if it's a counter-offer
 		const counterParsed = CounterOfferSchema.safeParse(body);
 		if (counterParsed.success) {
 			const result = await createCounterOffer(
 				clerkUserId,
 				params.id,
-				counterParsed.data.offeredCardIds,
-				counterParsed.data.requestedCardIds,
+				counterParsed.data.offeredItems,
+				counterParsed.data.requestedItems,
 				counterParsed.data.note
 			);
 			return json({ success: true, data: result });
 		}
 
-		// Otherwise it's a status update
 		const parsed = StatusUpdateSchema.safeParse(body);
 		if (!parsed.success) {
 			return json(

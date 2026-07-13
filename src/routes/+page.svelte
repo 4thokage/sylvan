@@ -2,10 +2,12 @@
 	import { parseCardList } from '$lib/parser';
 	import type { WishlistCard, LookupResult } from '$lib/types';
 	import { getCreatorFingerprint } from '$lib/device';
+	import { resolve } from '$app/paths';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import { useClerkContext } from 'svelte-clerk';
 	import CardRow from '$lib/components/CardRow.svelte';
 	import CardEditSheet from '$lib/components/CardEditSheet.svelte';
+	import CardSearchBox from '$lib/components/CardSearchBox.svelte';
 
 	let localeStore = getLocaleStore();
 	let clerkCtx = useClerkContext();
@@ -37,22 +39,22 @@
 
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-	function makeCardDefaults(c: LookupResult): WishlistCard {
+	function makeCardDefaults(c: LookupResult, localId?: string): WishlistCard {
 		return {
+			localId: localId || crypto.randomUUID(),
 			name: c.name,
 			qty: c.qty,
 			imageUrl: c.imageUrl,
 			manaCost: c.manaCost,
 			prices: c.prices as WishlistCard['prices'],
-			oracleId: c.oracleId,
 			cardPrintingId: c.cardPrintingId || null,
 			set: c.set,
 			collectorNumber: c.collectorNumber,
+			finish: c.finish || null,
 			condition: 'NM',
-			isFoil: false,
-			isSigned: false,
+			aftermarketSigned: false,
 			isAltered: false,
-			language: 'en'
+			language: null
 		};
 	}
 
@@ -62,7 +64,8 @@
 		if (debounceTimer) clearTimeout(debounceTimer);
 
 		if (cards.length === 0) {
-			wishlistCards = [];
+			// Keep any cards added via the search box; only reset when the user
+			// starts typing a list again (handled below).
 			isLoading = false;
 			lookupError = null;
 			return;
@@ -92,29 +95,31 @@
 				} else {
 					lookupError = result.error?.message ?? 'Failed to fetch cards';
 					wishlistCards = cards.map((c) => ({
+						localId: crypto.randomUUID(),
 						name: c.name,
 						qty: c.qty,
 						imageUrl: null,
 						manaCost: null,
 						condition: 'NM',
-						isFoil: false,
-						isSigned: false,
+						finish: null,
+						aftermarketSigned: false,
 						isAltered: false,
-						language: 'en'
+						language: null
 					}));
 				}
 			} catch {
 				lookupError = 'Failed to fetch cards';
 				wishlistCards = cards.map((c) => ({
+					localId: crypto.randomUUID(),
 					name: c.name,
 					qty: c.qty,
 					imageUrl: null,
 					manaCost: null,
 					condition: 'NM',
-					isFoil: false,
-					isSigned: false,
+					finish: null,
+					aftermarketSigned: false,
 					isAltered: false,
-					language: 'en'
+					language: null
 				}));
 			} finally {
 				isLoading = false;
@@ -164,12 +169,10 @@
 						qty: c.qty,
 						set: c.set,
 						collector_number: c.collectorNumber,
-						imageUrl: c.imageUrl,
-						manaCost: c.manaCost,
-						oracleId: c.oracleId,
+						cardPrintingId: c.cardPrintingId,
 						condition: c.condition,
-						isFoil: c.isFoil,
-						isSigned: c.isSigned,
+						finish: c.finish,
+						aftermarketSigned: c.aftermarketSigned,
 						isAltered: c.isAltered,
 						language: c.language
 					})),
@@ -209,16 +212,26 @@
 	}
 
 	function handleSaveCard(updated: WishlistCard) {
-		wishlistCards = wishlistCards.map((c) => (c.name === updated.name ? updated : c));
+		wishlistCards = wishlistCards.map((c) => (c.localId === updated.localId ? updated : c));
 		isDrawerOpen = false;
 		selectedCard = null;
 	}
 
 	function handleRemoveCard() {
 		if (!selectedCard) return;
-		wishlistCards = wishlistCards.filter((c) => c.name !== selectedCard!.name);
+		wishlistCards = wishlistCards.filter((c) => c.localId !== selectedCard!.localId);
 		isDrawerOpen = false;
 		selectedCard = null;
+	}
+
+	function addCardFromSearch(card: WishlistCard) {
+		const key = `${card.name}|${card.finish}|${card.condition}`;
+		const existing = wishlistCards.find((c) => `${c.name}|${c.finish}|${c.condition}` === key);
+		if (existing) {
+			existing.qty += card.qty;
+		} else {
+			wishlistCards = [...wishlistCards, card];
+		}
 	}
 </script>
 
@@ -289,7 +302,7 @@
 						<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
 							{#each userWishlists as wishlist (wishlist.id)}
 								<a
-									href="/{wishlist.id}"
+									href={resolve(`/${wishlist.id}`)}
 									class="flex items-center justify-between rounded-lg border border-border bg-surface-raised p-4 transition-colors hover:border-border-strong"
 								>
 									<div>
@@ -330,9 +343,19 @@
 
 				<div class="grid gap-8 lg:grid-cols-2">
 					<div class="space-y-4">
-						<label for="card-list" class="block text-sm font-medium text-text-dim">
-							{t($localeStore, 'wants.pasteList')}
-						</label>
+						<div>
+							<label for="card-list" class="mb-2 block text-sm font-medium text-text-dim">
+								{t($localeStore, 'wants.pasteList')}
+							</label>
+							<CardSearchBox
+								gameSlug={selectedGame}
+								placeholder="Search a card to add it directly…"
+								onSelect={addCardFromSearch}
+							/>
+							<p class="mt-1 text-xs text-text-muted">
+								Or paste a list below (MTG Arena, Moxfield, Archidekt, CSV, Deckbox, TCGplayer).
+							</p>
+						</div>
 						<textarea
 							id="card-list"
 							bind:value={input}
@@ -400,7 +423,7 @@
 							</div>
 						{:else if hasCards}
 							<div class="max-h-[500px] space-y-2 overflow-y-auto pr-2">
-								{#each wishlistCards as card (card.cardPrintingId || card.name + '-' + (card.set || '') + '-' + (card.collectorNumber || ''))}
+								{#each wishlistCards as card (card.localId)}
 									<CardRow {card} onClick={() => openCardEdit(card)} />
 								{/each}
 							</div>

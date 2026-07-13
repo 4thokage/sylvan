@@ -82,15 +82,13 @@ export const pt: Translations = {
 		findUsers: 'Encontre usuários que querem cartas da sua coleção',
 		yourProposals: 'Suas propostas de troca ativas',
 		createWishlist: 'Crie uma lista de desejos para ver sugestões de troca!',
-		wishlistOf: ' Lista de Desejos'
+		wishlistOf: ' Lista de Desejos',
+		propose: 'Propor troca',
+		anonymousOwner: 'Listas anônimas não podem receber propostas de troca.'
 	},
 	tools: {
 		title: 'Ferramentas',
 		subtitle: 'Utilitários para trocadores',
-		scan: {
-			title: 'Scanner de Cartas',
-			description: 'Escaneie cartas com sua câmera'
-		},
 		value: {
 			title: 'Valor da Coleção',
 			description: 'Calcule o valor total da sua coleção',
@@ -112,14 +110,6 @@ export const pt: Translations = {
 			balanced: 'Equilibrado',
 			favorsA: 'Favorece Lado A',
 			favorsB: 'Favorece Lado B'
-		},
-		life: {
-			title: 'Contador de Vida',
-			description: 'Contador de vida rápido para MTG',
-			player1: 'Jogador 1',
-			player2: 'Jogador 2',
-			reset: 'Reiniciar',
-			startingLife: 'Vida Inicial'
 		}
 	},
 	inbox: {

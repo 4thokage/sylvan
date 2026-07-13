@@ -1,4 +1,4 @@
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import type {
 	TradeRepository,
 	TradeRow,
@@ -11,7 +11,7 @@ import type {
 
 export const tradeRepository: TradeRepository = {
 	async getUserIdByClerkId(clerkUserId: string) {
-		const { data: user } = await supabase
+		const { data: user } = await getSupabase()
 			.from('users')
 			.select('id')
 			.eq('clerk_user_id', clerkUserId)
@@ -20,27 +20,34 @@ export const tradeRepository: TradeRepository = {
 	},
 
 	async getPublicWishlists(limit = 50, offset = 0) {
-		const { data: wishlists } = await supabase
+		const { data: wishlists } = await getSupabase()
 			.from('wishlists')
-			.select('*')
+			.select('*, users(username)')
 			.eq('visibility', 'public')
 			.order('created_at', { ascending: false })
 			.range(offset, offset + limit - 1);
 
-		return (wishlists || []) as WishlistRow[];
+		return (
+			(wishlists || []) as unknown as Array<
+				WishlistRow & { users?: { username: string | null } | null }
+			>
+		).map((w) => ({
+			...w,
+			username: w.users?.username ?? null
+		})) as WishlistRow[];
 	},
 
 	async getWishlistItems(wishlistIds: string[]) {
-		const { data: items } = await supabase
+		const { data: items } = await getSupabase()
 			.from('wishlist_items')
-			.select('wishlist_id, card_id, quantity')
+			.select('*')
 			.in('wishlist_id', wishlistIds);
 
 		return (items || []) as WishlistItemRow[];
 	},
 
 	async getWishlistItemsByCardIds(cardIds: string[]) {
-		const { data: items } = await supabase
+		const { data: items } = await getSupabase()
 			.from('wishlist_items')
 			.select('*')
 			.in('card_id', cardIds);
@@ -49,7 +56,7 @@ export const tradeRepository: TradeRepository = {
 	},
 
 	async getCardIdsByPrintingIds(printingIds: string[]) {
-		const { data: printings } = await supabase
+		const { data: printings } = await getSupabase()
 			.from('card_printings')
 			.select('id, card_id')
 			.in('id', printingIds);
@@ -58,7 +65,7 @@ export const tradeRepository: TradeRepository = {
 	},
 
 	async getCardPrintingPrices(cardIds: string[]) {
-		const { data: prices } = await supabase
+		const { data: prices } = await getSupabase()
 			.from('card_printings')
 			.select('card_id, market_price_eur')
 			.in('card_id', cardIds)
@@ -79,35 +86,23 @@ export const tradeRepository: TradeRepository = {
 			.map((cardId) => ({ cardId, price: priceMap.get(cardId)! }));
 	},
 
-	async createTrade(trade) {
-		const { data } = await supabase
-			.from('trades')
-			.insert({
-				proposer_id: trade.proposer_id,
-				recipient_id: trade.recipient_id,
-				status: 'pending',
-				proposer_note: trade.proposer_note || null
-			})
-			.select()
-			.single();
-
-		if (!data) throw new Error('Failed to create trade');
-		return data as TradeRow;
-	},
-
 	async getTradeById(tradeId: string) {
-		const { data: trade } = await supabase.from('trades').select('*').eq('id', tradeId).single();
+		const { data: trade } = await getSupabase()
+			.from('trades')
+			.select('*')
+			.eq('id', tradeId)
+			.single();
 		return trade as TradeRow | null;
 	},
 
 	async getTradesForUser(userDbId: string, limit = 50) {
-		const { data: trades } = await supabase
+		const { data: trades } = await getSupabase()
 			.from('trades')
 			.select(
 				`
         *,
-        proposer:proposer_id(id, username),
-        recipient:recipient_id(id, username)
+        proposer:proposer_id!users(id, username),
+        recipient:recipient_id!users(id, username)
       `
 			)
 			.or(`proposer_id.eq.${userDbId},recipient_id.eq.${userDbId}`)
@@ -117,38 +112,8 @@ export const tradeRepository: TradeRepository = {
 		return (trades || []) as TradeWithProfiles[];
 	},
 
-	async updateTradeStatus(tradeId, status, completedAt?) {
-		const updates: Record<string, unknown> = { status };
-		if (completedAt) updates.completed_at = completedAt;
-		await supabase.from('trades').update(updates).eq('id', tradeId);
-	},
-
-	async updateCurrentOffer(tradeId, offerId) {
-		await supabase.from('trades').update({ current_offer_id: offerId }).eq('id', tradeId);
-	},
-
-	async createTradeOffer(offer) {
-		const { data } = await supabase
-			.from('trade_offers')
-			.insert({
-				trade_id: offer.trade_id,
-				offered_by: offer.offered_by
-			})
-			.select()
-			.single();
-
-		if (!data) throw new Error('Failed to create trade offer');
-		return data as TradeOfferRow;
-	},
-
-	async createTradeOfferItems(items) {
-		if (items.length === 0) return;
-		const { error } = await supabase.from('trade_offer_items').insert(items);
-		if (error) throw new Error(error.message);
-	},
-
 	async getTradeOffers(tradeId: string) {
-		const { data } = await supabase
+		const { data } = await getSupabase()
 			.from('trade_offers')
 			.select('*')
 			.eq('trade_id', tradeId)
@@ -158,17 +123,29 @@ export const tradeRepository: TradeRepository = {
 	},
 
 	async getTradeOfferItems(offerId: string) {
-		const { data } = await supabase.from('trade_offer_items').select('*').eq('offer_id', offerId);
+		const { data } = await getSupabase()
+			.from('trade_offer_items')
+			.select('*')
+			.eq('offer_id', offerId);
 
 		return (data || []) as TradeOfferItemRow[];
 	},
 
 	async getBlockedUserIds(blockerId: string) {
-		const { data: blocked } = await supabase
+		const { data: blocked } = await getSupabase()
 			.from('blocked_users')
 			.select('blocked_id')
 			.eq('blocker_id', blockerId);
 
 		return (blocked || []).map((b) => b.blocked_id);
+	},
+
+	async getUsersBlocking(blockedId: string) {
+		const { data: blocked } = await getSupabase()
+			.from('blocked_users')
+			.select('blocker_id')
+			.eq('blocked_id', blockedId);
+
+		return (blocked || []).map((b) => b.blocker_id);
 	}
 };

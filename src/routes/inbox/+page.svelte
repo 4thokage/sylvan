@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	interface Notification {
 		id: string;
 		type: string;
@@ -172,7 +174,10 @@
 							>
 						</div>
 						{#if n.data && (n.data as Record<string, unknown>).tradeId}
-							<a href="/trades" class="mt-2 inline-block text-xs text-accent hover:underline">
+							<a
+								href={resolve('/trades')}
+								class="mt-2 inline-block text-xs text-accent hover:underline"
+							>
 								{t($localeStore, 'messages.viewTrade')} →
 							</a>
 						{/if}
@@ -197,7 +202,9 @@
 						onkeydown={(e) => {
 							if (e.key === 'Enter' || e.key === ' ') {
 								e.preventDefault();
-								!msg.read_at && markMessageRead(msg.id);
+								if (!msg.read_at) {
+									markMessageRead(msg.id);
+								}
 							}
 						}}
 						role="button"
@@ -211,7 +218,10 @@
 						</div>
 						<p class="text-sm text-text-dim">{msg.body}</p>
 						{#if msg.trade_id}
-							<a href="/trades" class="mt-2 inline-block text-xs text-accent hover:underline">
+							<a
+								href={resolve('/trades')}
+								class="mt-2 inline-block text-xs text-accent hover:underline"
+							>
 								{t($localeStore, 'messages.viewTrade')} →
 							</a>
 						{/if}

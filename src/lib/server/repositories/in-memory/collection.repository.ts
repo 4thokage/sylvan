@@ -1,5 +1,9 @@
 import type { CollectionRepository, UserCardRow } from '../types';
 
+function asUserCards(cards: Array<Record<string, unknown>>): UserCardRow[] {
+	return cards as unknown as UserCardRow[];
+}
+
 export function createInMemoryCollectionRepository(): CollectionRepository {
 	const users = new Map<string, string>();
 	const games = new Map<string, string>();
@@ -24,7 +28,7 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
 				const gameId = await this.getGameId(gameSlug);
 				result = result.filter((c) => c.game_id === gameId);
 			}
-			return result as any;
+			return asUserCards(result);
 		},
 
 		async getPublicCollection(userId: string, gameSlug?: string) {
@@ -33,7 +37,7 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
 				const gameId = await this.getGameId(gameSlug);
 				result = result.filter((c) => c.game_id === gameId);
 			}
-			return result as any;
+			return asUserCards(result);
 		},
 
 		async saveCollection(userId, incomingCards, gameSlug = 'mtg') {
@@ -57,11 +61,11 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
 						card_printing_id: incoming.card_printing_id,
 						quantity: incoming.quantity,
 						condition: incoming.condition || 'NM',
-						is_foil: incoming.is_foil || false,
-						is_signed: incoming.is_signed || false,
+						aftermarket_signed: incoming.aftermarket_signed || false,
 						is_altered: incoming.is_altered || false,
-						language: incoming.language || 'en',
 						is_tradeable: incoming.is_tradeable !== undefined ? incoming.is_tradeable : true,
+						location: incoming.location || null,
+						notes: incoming.notes || null,
 						created_at: new Date().toISOString(),
 						updated_at: new Date().toISOString()
 					});
@@ -90,11 +94,11 @@ export function createInMemoryCollectionRepository(): CollectionRepository {
 					card_printing_id: c.card_printing_id,
 					quantity: c.quantity,
 					condition: c.condition || 'NM',
-					is_foil: c.is_foil || false,
-					is_signed: c.is_signed || false,
+					aftermarket_signed: c.aftermarket_signed || false,
 					is_altered: c.is_altered || false,
-					language: c.language || 'en',
 					is_tradeable: c.is_tradeable !== undefined ? c.is_tradeable : true,
+					location: c.location || null,
+					notes: c.notes || null,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString()
 				});

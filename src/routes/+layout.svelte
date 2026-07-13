@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { resolve } from '$app/paths';
 	import { ClerkProvider } from 'svelte-clerk';
 	import HeaderNav from '$lib/components/HeaderNav.svelte';
 	import { createLocaleStore, setLocaleContext, t } from '$lib/i18n';
@@ -39,7 +40,7 @@
 	<div class="min-h-screen bg-surface text-text">
 		<header class="border-b border-border px-4 py-3 sm:px-6 sm:py-4">
 			<div class="mx-auto flex max-w-7xl items-center justify-between">
-				<a href="/" class="text-xl font-semibold tracking-tight text-accent sm:text-2xl">
+				<a href={resolve('/')} class="text-xl font-semibold tracking-tight text-accent sm:text-2xl">
 					Sylvan
 				</a>
 
@@ -54,9 +55,12 @@
 		<footer class="hidden border-t border-border px-6 py-4 sm:block">
 			<div class="mx-auto max-w-7xl">
 				<div class="flex items-center justify-center gap-4 text-sm text-text-dim">
-					<a href="/terms" class="hover:text-text" data-sveltekit-preload-data>{__t('terms')}</a>
+					<a href={resolve('/terms')} class="hover:text-text" data-sveltekit-preload-data
+						>{__t('terms')}</a
+					>
 					<span class="text-text-muted">•</span>
-					<a href="/privacy" class="hover:text-text" data-sveltekit-preload-data>{__t('privacy')}</a
+					<a href={resolve('/privacy')} class="hover:text-text" data-sveltekit-preload-data
+						>{__t('privacy')}</a
 					>
 				</div>
 			</div>

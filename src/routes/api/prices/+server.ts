@@ -29,7 +29,9 @@ export const POST: RequestHandler = async (event) => {
 				name: c.name,
 				qty: 1,
 				set: c.set,
-				collector_number: c.collector_number
+				collector_number: c.collector_number,
+				finish: c.finish,
+				cardPrintingId: c.cardPrintingId
 			}))
 		);
 
@@ -37,15 +39,12 @@ export const POST: RequestHandler = async (event) => {
 			const found = resolved.find((r) => r.name.toLowerCase() === card.name.toLowerCase());
 			return {
 				name: card.name,
-				selectedPrintIndex: card.selectedPrintIndex,
-				isSelected: card.selectedPrintIndex !== undefined,
+				cardPrintingId: found?.cardPrintingId || null,
+				finish: found?.finish || null,
 				prices: found?.prices
 					? {
 							usd: found.prices.usd ?? null,
-							usdFoil: found.prices.usdFoil ?? null,
-							eur: found.prices.eur ?? null,
-							eurFoil: found.prices.eurFoil ?? null,
-							tix: null
+							eur: found.prices.eur ?? null
 						}
 					: null,
 				imageUrl: found?.imageUrl || null,

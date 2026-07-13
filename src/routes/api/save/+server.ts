@@ -1,11 +1,12 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { SaveWishlistSchema } from '$lib/schemas/api';
+import { SaveWishlistSchema, type SaveWishlistInput } from '$lib/schemas/api';
 import { saveRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { getOptionalAuth } from '$lib/server/middleware/auth';
+import { ensureUser } from '$lib/server/services/user.service';
 import { resolveCards } from '$lib/server/services/card-resolver.service';
 import { createWishlist } from '$lib/server/services/wishlist.service';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -25,10 +26,17 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 
-		const { cards, creatorFingerprint, ownerName, gameSlug } = parsed.data;
+		// Ensure a `users` row exists for signed-in creators so the wishlist can
+		// be linked and later edited/owned (the page-load sync is not guaranteed
+		// for SPA fetches).
+		if (clerkUserId) {
+			await ensureUser(clerkUserId);
+		}
+
+		const { cards, creatorFingerprint, ownerName, gameSlug } = parsed.data as SaveWishlistInput;
 
 		const gameSlugValue = gameSlug || 'mtg';
-		const { data: game } = await supabase
+		const { data: game } = await getSupabase()
 			.from('games')
 			.select('id')
 			.eq('slug', gameSlugValue)
@@ -40,13 +48,13 @@ export const POST: RequestHandler = async (event) => {
 
 		const cardResults = await resolveCards(
 			gameSlugValue,
-			cards.map((c: Record<string, unknown>) => ({
-				name: c.name as string,
-				qty: c.qty as number,
-				set: c.set as string | undefined,
-				collectorNumber: c.collector_number as string | undefined,
-				oracleId: (c.oracleId as string | null) || undefined,
-				cardPrintingId: c.cardPrintingId as string | null | undefined
+			cards.map((c) => ({
+				name: c.name,
+				qty: c.qty,
+				set: c.set,
+				collectorNumber: c.collector_number,
+				finish: c.finish || undefined,
+				cardPrintingId: c.cardPrintingId || undefined
 			}))
 		);
 		if (cardResults.errors.length > 0) {
@@ -54,16 +62,16 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const resolvedCards = cardResults.resolved.map((c) => {
-			const input = cards.find((cr: { name: string }) => cr.name === c.cardName);
+			const input = cards.find((cr) => cr.name === c.cardName);
 			return {
 				card_id: c.cardId,
 				qty: c.qty,
 				card_printing_id: c.printingId,
-				condition: input?.condition || 'NM',
-				is_foil: input?.isFoil || false,
-				is_signed: input?.isSigned || false,
-				is_altered: input?.isAltered || false,
-				language: input?.language || 'en'
+				condition: input?.condition || null,
+				finish: input?.finish || null,
+				aftermarket_signed: input?.aftermarketSigned ?? null,
+				is_altered: input?.isAltered ?? null,
+				language: input?.language || null
 			};
 		});
 
@@ -72,7 +80,8 @@ export const POST: RequestHandler = async (event) => {
 			creatorFingerprint: creatorFingerprint || undefined,
 			ownerName: ownerName || null,
 			clerkUserId: clerkUserId || undefined,
-			gameSlug: gameSlugValue
+			gameSlug: gameSlugValue,
+			visibility: 'public'
 		});
 
 		return json({ success: true, data: { id } });

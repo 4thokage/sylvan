@@ -9,10 +9,15 @@
 	let results = $state<LookupResult[]>([]);
 
 	const parsed = $derived(parseCardList(input));
-	const totalValue = $derived(results.reduce((sum, c) => sum + (c.prices?.usd || 0) * c.qty, 0));
+	const totalValue = $derived(
+		results.reduce((sum, c) => sum + parseFloat(c.prices?.usd || '0') * c.qty, 0)
+	);
 	const topCards = $derived(
 		[...results]
-			.sort((a, b) => (b.prices?.usd || 0) * b.qty - (a.prices?.usd || 0) * a.qty)
+			.sort(
+				(a, b) =>
+					parseFloat(b.prices?.usd || '0') * b.qty - parseFloat(a.prices?.usd || '0') * a.qty
+			)
 			.slice(0, 10)
 	);
 
@@ -102,7 +107,9 @@
 						{#each topCards as card (card.cardPrintingId || card.name + '-' + (card.set || ''))}
 							<div class="flex items-center justify-between text-sm">
 								<span class="text-text">{card.qty}x {card.name}</span>
-								<span class="text-accent">${((card.prices?.usd || 0) * card.qty).toFixed(2)}</span>
+								<span class="text-accent"
+									>${(parseFloat(card.prices?.usd || '0') * card.qty).toFixed(2)}</span
+								>
 							</div>
 						{/each}
 					</div>

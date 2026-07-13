@@ -1,8 +1,10 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	let { data } = $props();
 	const wishlist = $derived(data.wishlist);
 	const rawCards = $derived(
-		(wishlist.cards as Array<{ card_name: string; quantity: number }>) || []
+		(wishlist.cards as Array<{ card_name: string; quantity: number }> | undefined) || []
 	);
 
 	const proxyCards = $derived(
@@ -37,7 +39,7 @@
 
 <div class="no-print fixed top-4 right-4 z-50 flex gap-3">
 	<a
-		href="/{wishlist.id}"
+		href={resolve(`/${wishlist.id}`)}
 		class="rounded-lg bg-surface-hover px-4 py-2 text-sm text-text transition-colors hover:bg-surface-hover"
 		data-sveltekit-preload-data
 	>

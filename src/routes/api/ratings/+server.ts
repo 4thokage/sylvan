@@ -1,8 +1,9 @@
 import type { RequestHandler } from './$types';
+import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import { z } from 'zod/v4';
 
 const CreateRatingSchema = z.object({
@@ -12,7 +13,7 @@ const CreateRatingSchema = z.object({
 	comment: z.string().max(2000).optional()
 });
 
-export const GET: RequestHandler = async ({ locals, url }) => {
+export const GET: RequestHandler = async ({ url }) => {
 	const userId = url.searchParams.get('userId');
 	if (!userId) {
 		return json(
@@ -21,14 +22,17 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		);
 	}
 
-	const { data: ratings } = await supabase
+	const { data: ratings } = await getSupabase()
 		.from('trade_ratings')
-		.select('*, rater:rater_id(id, username)')
+		.select('*, rater:rater_id!users(id, username)')
 		.eq('rated_id', userId)
 		.order('created_at', { ascending: false })
 		.limit(50);
 
-	const avgResult = await supabase.from('trade_ratings').select('rating').eq('rated_id', userId);
+	const avgResult = await getSupabase()
+		.from('trade_ratings')
+		.select('rating')
+		.eq('rated_id', userId);
 
 	const allRatings = avgResult.data || [];
 	const averageRating =
@@ -49,10 +53,10 @@ export const POST: RequestHandler = async (event) => {
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
-	} as any);
+	} as unknown as RequestEvent);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
-	const { data: user } = await supabase
+	const { data: user } = await getSupabase()
 		.from('users')
 		.select('id')
 		.eq('clerk_user_id', clerkUserId)
@@ -75,19 +79,15 @@ export const POST: RequestHandler = async (event) => {
 		return json({ success: false, error: { message: 'Cannot rate yourself' } }, { status: 400 });
 	}
 
-	const { error } = await supabase.from('trade_ratings').upsert(
-		{
-			trade_id: parsed.data.tradeId,
-			rater_id: user.id,
-			rated_id: parsed.data.ratedUserId,
-			rating: parsed.data.rating,
-			comment: parsed.data.comment || null
-		},
-		{ onConflict: 'trade_id,rater_id' }
-	);
+	const { error } = await getSupabase().rpc('create_trade_rating', {
+		p_trade_id: parsed.data.tradeId,
+		p_rated_id: parsed.data.ratedUserId,
+		p_rating: parsed.data.rating,
+		p_comment: parsed.data.comment || null
+	});
 
 	if (error) {
-		return json({ success: false, error: { message: error.message } }, { status: 500 });
+		return json({ success: false, error: { message: error.message } }, { status: 400 });
 	}
 
 	return json({ success: true });

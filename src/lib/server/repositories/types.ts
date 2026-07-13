@@ -1,3 +1,6 @@
+export type CardCondition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG';
+export type CardFinish = 'non-foil' | 'foil' | 'foil-etched' | 'holo' | 'reverse-holo';
+
 export interface GameRow {
 	id: string;
 	slug: string;
@@ -17,7 +20,6 @@ export interface CardRow {
 	name: string;
 	normalized_name: string;
 	image_url: string | null;
-	oracle_id: string | null;
 	game_id: string;
 	game_data: Record<string, unknown>;
 }
@@ -25,10 +27,14 @@ export interface CardRow {
 export interface CardPrintingRow {
 	id: string;
 	card_id: string;
+	game_id: string;
 	set_code: string;
 	set_name: string;
-	collector_number: string;
-	rarity: string;
+	collector_number: string | null;
+	rarity: string | null;
+	language: string;
+	finish: string;
+	factory_signed: boolean;
 	image_url: string | null;
 	market_price_usd: number | null;
 	market_price_eur: number | null;
@@ -39,14 +45,13 @@ export interface UserCardRow {
 	id: string;
 	user_id: string;
 	card_printing_id: string;
-	game_id: string;
 	quantity: number;
-	condition: string;
-	is_foil: boolean;
-	is_signed: boolean;
+	condition: CardCondition;
+	aftermarket_signed: boolean;
 	is_altered: boolean;
-	language: string;
 	is_tradeable: boolean;
+	location: string | null;
+	notes: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -55,10 +60,13 @@ export interface WishlistRow {
 	id: string;
 	user_id: string | null;
 	game_id: string | null;
+	title: string | null;
 	owner_name: string | null;
+	username: string | null;
 	creator_fingerprint: string | null;
 	visibility: string;
 	created_at: string;
+	updated_at: string;
 }
 
 export interface WishlistItemRow {
@@ -67,11 +75,11 @@ export interface WishlistItemRow {
 	card_id: string;
 	card_printing_id: string | null;
 	quantity: number;
-	condition: string;
-	is_foil: boolean;
-	is_signed: boolean;
-	is_altered: boolean;
-	language: string;
+	condition: CardCondition | null;
+	finish: string | null;
+	aftermarket_signed: boolean | null;
+	is_altered: boolean | null;
+	language: string | null;
 }
 
 export interface TradeRow {
@@ -84,6 +92,7 @@ export interface TradeRow {
 	recipient_note: string | null;
 	completed_at: string | null;
 	created_at: string;
+	updated_at: string;
 }
 
 export interface TradeWithProfiles extends TradeRow {
@@ -95,6 +104,7 @@ export interface TradeOfferRow {
 	id: string;
 	trade_id: string;
 	offered_by: string;
+	note: string | null;
 	created_at: string;
 }
 
@@ -102,7 +112,7 @@ export interface TradeOfferItemRow {
 	id: string;
 	offer_id: string;
 	user_card_id: string;
-	side: string;
+	quantity: number;
 }
 
 export interface BlockedUserRow {
@@ -122,12 +132,12 @@ export interface CollectionRepository {
 		cards: Array<{
 			card_printing_id: string;
 			quantity: number;
-			condition?: string;
-			is_foil?: boolean;
-			is_signed?: boolean;
-			is_altered?: boolean;
-			language?: string;
-			is_tradeable?: boolean;
+			condition: CardCondition;
+			aftermarket_signed: boolean;
+			is_altered: boolean;
+			is_tradeable: boolean;
+			location: string | null;
+			notes: string | null;
 		}>,
 		gameSlug?: string
 	): Promise<{ errors: string[] }>;
@@ -136,12 +146,12 @@ export interface CollectionRepository {
 		cards: Array<{
 			card_printing_id: string;
 			quantity: number;
-			condition?: string;
-			is_foil?: boolean;
-			is_signed?: boolean;
-			is_altered?: boolean;
-			language?: string;
-			is_tradeable?: boolean;
+			condition: CardCondition;
+			aftermarket_signed: boolean;
+			is_altered: boolean;
+			is_tradeable: boolean;
+			location: string | null;
+			notes: string | null;
 		}>,
 		gameSlug?: string
 	): Promise<{ errors: string[] }>;
@@ -155,22 +165,12 @@ export interface TradeRepository {
 	getWishlistItemsByCardIds(cardIds: string[]): Promise<WishlistItemRow[]>;
 	getCardIdsByPrintingIds(printingIds: string[]): Promise<Array<{ id: string; card_id: string }>>;
 	getCardPrintingPrices(cardIds: string[]): Promise<Array<{ cardId: string; price: number }>>;
-	createTrade(trade: {
-		proposer_id: string;
-		recipient_id: string;
-		proposer_note?: string | null;
-	}): Promise<TradeRow>;
 	getTradeById(tradeId: string): Promise<TradeRow | null>;
 	getTradesForUser(userDbId: string, limit?: number): Promise<TradeWithProfiles[]>;
-	updateTradeStatus(tradeId: string, status: string, completedAt?: string): Promise<void>;
-	updateCurrentOffer(tradeId: string, offerId: string): Promise<void>;
-	createTradeOffer(offer: { trade_id: string; offered_by: string }): Promise<TradeOfferRow>;
-	createTradeOfferItems(
-		items: Array<{ offer_id: string; user_card_id: string; side: string }>
-	): Promise<void>;
 	getTradeOffers(tradeId: string): Promise<TradeOfferRow[]>;
 	getTradeOfferItems(offerId: string): Promise<TradeOfferItemRow[]>;
 	getBlockedUserIds(blockerId: string): Promise<string[]>;
+	getUsersBlocking(blockedId: string): Promise<string[]>;
 }
 
 export interface WishlistRepository {
@@ -180,22 +180,21 @@ export interface WishlistRepository {
 		id: string;
 		user_id: string | null;
 		game_id: string | null;
+		title: string | null;
 		owner_name: string | null;
 		creator_fingerprint: string | null;
-	}): Promise<void>;
-	createWishlistItems(
+		visibility: string;
 		items: Array<{
-			wishlist_id: string;
 			card_id: string;
 			card_printing_id?: string | null;
 			quantity: number;
-			condition?: string;
-			is_foil?: boolean;
-			is_signed?: boolean;
-			is_altered?: boolean;
-			language?: string;
-		}>
-	): Promise<void>;
+			condition?: CardCondition | null;
+			finish?: string | null;
+			aftermarket_signed?: boolean | null;
+			is_altered?: boolean | null;
+			language?: string | null;
+		}>;
+	}): Promise<void>;
 	getWishlist(id: string): Promise<{ wishlist: WishlistRow | null; items: WishlistItemRow[] }>;
 	deleteWishlistByUser(id: string, userId: string): Promise<void>;
 	deleteWishlistByFingerprint(id: string, fingerprint: string): Promise<void>;

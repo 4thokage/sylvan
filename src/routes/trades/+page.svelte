@@ -1,13 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { useClerkContext } from 'svelte-clerk';
+	import { goto } from '$app/navigation';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import { resolve } from '$app/paths';
+
+	interface MatchedCard {
+		name: string;
+		qty: number;
+		price: number;
+		userCardId: string;
+		finish: string | null;
+		condition: string;
+	}
 
 	interface TradeMatch {
 		wishlistId: string;
 		wishlistOwner: string;
-		cardsYouHave: { name: string; qty: number; price: number }[];
+		userId: string | null;
+		cardsYouHave: MatchedCard[];
 		valueYouGive: number;
 		score: number;
 	}
@@ -29,6 +40,7 @@
 	let localeStore = getLocaleStore();
 	let currentUserId = $derived(clerkCtx.user?.id ?? data.user?.id ?? null);
 	let isSignedIn = $derived(currentUserId !== null);
+	let currentDbUserId = $state<string | null>(null);
 
 	let tradeMatches = $state<TradeMatch[]>([]);
 	let userTrades = $state<Trade[]>([]);
@@ -44,6 +56,7 @@
 			const result = await res.json();
 			if (result.success) {
 				tradeMatches = result.data.matches || [];
+				currentDbUserId = result.data.userId || null;
 			}
 		} catch (err) {
 			console.error('Failed to refresh trades', err);
@@ -62,6 +75,7 @@
 			const result = await res.json();
 			if (result.success) {
 				userTrades = result.data.trades || [];
+				currentDbUserId = result.data.userId || null;
 			}
 		} catch (err) {
 			console.error('Failed to load user trades', err);
@@ -90,10 +104,13 @@
 		}
 	}
 
+	function getOtherUser(trade: Trade): { id: string; username: string | null } | null {
+		const isProposer = trade.proposer_id === currentDbUserId;
+		return isProposer ? trade.recipient : trade.proposer;
+	}
+
 	function getOtherUserName(trade: Trade): string {
-		const isProposer = trade.proposer_id === currentUserId;
-		const other = isProposer ? trade.recipient : trade.proposer;
-		return other?.username || 'Unknown';
+		return getOtherUser(trade)?.username || 'Unknown';
 	}
 
 	function getStatusBadge(status: string): string {
@@ -116,7 +133,7 @@
 		if (!text) return;
 		const trade = userTrades.find((t) => t.id === tradeId);
 		if (!trade) return;
-		const isProposer = trade.proposer_id === currentUserId;
+		const isProposer = trade.proposer_id === currentDbUserId;
 		const recipientId = isProposer ? trade.recipient_id : trade.proposer_id;
 		try {
 			const res = await fetch('/api/messages', {
@@ -137,6 +154,35 @@
 			}
 		} catch {
 			message = { type: 'error', text: 'Failed to send message' };
+		}
+	}
+
+	async function proposeTrade(match: TradeMatch) {
+		if (!match.userId) return;
+		try {
+			const res = await fetch('/api/trades', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					recipientId: match.userId,
+					offeredItems: match.cardsYouHave.map((c) => ({
+						userCardId: c.userCardId,
+						quantity: c.qty
+					})),
+					requestedItems: []
+				})
+			});
+			const result = await res.json();
+			if (result.success) {
+				message = { type: 'success', text: 'Trade proposal sent!' };
+				setTimeout(() => (message = null), 3000);
+				activeTab = 'active';
+				await loadUserTrades();
+			} else {
+				message = { type: 'error', text: result.error?.message || 'Failed to propose trade' };
+			}
+		} catch {
+			message = { type: 'error', text: 'Failed to propose trade' };
 		}
 	}
 
@@ -243,13 +289,30 @@
 								{t($localeStore, 'trades.theyWant')}
 							</h4>
 							<div class="space-y-1">
-								{#each match.cardsYouHave as card (card.name)}
+								{#each match.cardsYouHave as card (card.userCardId)}
 									<div class="flex justify-between text-sm">
-										<span class="text-text-soft">{card.qty}x {card.name}</span>
+										<span class="text-text-soft">
+											{card.qty}x {card.name}
+											{#if card.finish || card.condition}
+												<span class="text-text-dim"
+													>({[card.finish, card.condition].filter(Boolean).join(', ')})</span
+												>
+											{/if}
+										</span>
 									</div>
 								{/each}
 							</div>
 						</div>
+						{#if isSignedIn && match.userId}
+							<button
+								onclick={() => proposeTrade(match)}
+								class="mt-3 w-full rounded bg-accent-bg py-2 text-sm text-white transition-colors hover:bg-accent-hover"
+							>
+								{t($localeStore, 'trades.propose')}
+							</button>
+						{:else if isSignedIn}
+							<p class="mt-3 text-xs text-text-dim">{t($localeStore, 'trades.anonymousOwner')}</p>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -273,7 +336,12 @@
 							<div class="flex items-center gap-3">
 								<span class="text-sm text-text-soft">
 									{t($localeStore, 'trades.tradeWith')}
-									<span class="font-medium text-text">{getOtherUserName(trade)}</span>
+									<a
+										href={resolve(`/users/${getOtherUser(trade)?.id}`)}
+										class="font-medium text-text hover:text-accent hover:underline"
+									>
+										{getOtherUserName(trade)}
+									</a>
 								</span>
 								<span class="rounded-full px-2 py-0.5 text-xs {getStatusBadge(trade.status)}">
 									{trade.status}
@@ -286,7 +354,13 @@
 								>
 									{t($localeStore, 'trades.message')}
 								</button>
-								{#if trade.status === 'pending' && trade.recipient_id === currentUserId}
+								<button
+									onclick={() => goto(resolve(`/trades/${trade.id}`))}
+									class="rounded border border-border-strong px-2 py-1 text-xs text-text-dim hover:bg-surface-card"
+								>
+									View
+								</button>
+								{#if trade.status === 'pending' && trade.recipient_id === currentDbUserId}
 									<button
 										onclick={() => updateTradeStatus(trade.id, 'accept')}
 										class="rounded bg-accent-bg px-3 py-1 text-xs text-white hover:bg-accent-hover"
@@ -299,7 +373,7 @@
 									>
 										{t($localeStore, 'trades.reject')}
 									</button>
-								{:else if trade.status === 'pending' && trade.proposer_id === currentUserId}
+								{:else if trade.status === 'pending' && trade.proposer_id === currentDbUserId}
 									<button
 										onclick={() => updateTradeStatus(trade.id, 'cancel')}
 										class="rounded border border-border-strong px-3 py-1 text-xs text-text-dim hover:bg-surface-card"

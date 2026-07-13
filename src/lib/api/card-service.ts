@@ -1,4 +1,4 @@
-import type { TcgCard, TcgPrinting, TcgProvider, TcgSearchResult } from './providers/types';
+import type { TcgCard, TcgPrinting, TcgProvider } from './providers/types';
 import { scryfallProvider } from './providers/scryfall';
 import { pokemonProvider } from './providers/pokemon';
 import { riftboundProvider } from './providers/riftbound';
@@ -25,7 +25,7 @@ export async function searchCards(
 	gameSlug: string,
 	query: string,
 	limit = 25
-): Promise<TcgSearchResult> {
+): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
 	return getProvider(gameSlug).searchCards(query, limit);
 }
 
@@ -53,21 +53,22 @@ export async function getAllPrintings(gameSlug: string, cardName: string): Promi
 	return getProvider(gameSlug).getAllPrintings(cardName);
 }
 
+export interface ResolvedCard {
+	name: string;
+	qty: number;
+	imageUrl: string | null;
+	manaCost: string | null;
+	prices?: { usd: string | null; eur: string | null };
+	set?: string;
+	collectorNumber?: string;
+	cardPrintingId?: string;
+	finish?: string;
+}
+
 export async function resolveCards(
 	gameSlug: string,
 	parsedCards: Array<{ name: string; qty: number; set?: string; collector_number?: string }>
-): Promise<
-	Array<{
-		name: string;
-		qty: number;
-		imageUrl: string | null;
-		manaCost: string | null;
-		prices?: Record<string, string | null>;
-		oracleId?: string;
-		set?: string;
-		collectorNumber?: string;
-	}>
-> {
+): Promise<ResolvedCard[]> {
 	const identifiers = parsedCards.map((c) => ({
 		name: c.name,
 		set: c.set,
@@ -86,10 +87,11 @@ export async function resolveCards(
 				qty: parsed.qty,
 				imageUrl: found.imageUrl,
 				manaCost: found.manaCost,
-				prices: found.prices as Record<string, string | null>,
-				oracleId: found.oracleId || undefined,
+				prices: found.prices,
 				set: found.setCode || undefined,
-				collectorNumber: found.collectorNumber || undefined
+				collectorNumber: found.collectorNumber || undefined,
+				cardPrintingId: found.id || undefined,
+				finish: found.finish || undefined
 			};
 		}
 		return {

@@ -13,8 +13,12 @@
 	const parsedA = $derived(parseCardList(sideA));
 	const parsedB = $derived(parseCardList(sideB));
 
-	const totalA = $derived(resultsA.reduce((sum, c) => sum + (c.prices?.usd || 0) * c.qty, 0));
-	const totalB = $derived(resultsB.reduce((sum, c) => sum + (c.prices?.usd || 0) * c.qty, 0));
+	const totalA = $derived(
+		resultsA.reduce((sum, c) => sum + parseFloat(c.prices?.usd || '0') * c.qty, 0)
+	);
+	const totalB = $derived(
+		resultsB.reduce((sum, c) => sum + parseFloat(c.prices?.usd || '0') * c.qty, 0)
+	);
 	const difference = $derived(Math.abs(totalA - totalB));
 	const fairness = $derived(() => {
 		const max = Math.max(totalA, totalB);
@@ -22,6 +26,7 @@
 		const ratio = Math.min(totalA, totalB) / max;
 		return Math.round(ratio * 100);
 	});
+	const fairnessScore = $derived(fairness());
 
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,9 +71,9 @@
 	<p class="mb-6 text-text-muted">{t($localeStore, 'tools.fairness.description')}</p>
 
 	<div class="grid gap-6 lg:grid-cols-2">
-		<div class="space-y-2">
-			<label class="text-sm font-medium text-text-dim"
-				>{t($localeStore, 'tools.fairness.sideA')}</label
+		<label class="block space-y-2">
+			<span class="text-sm font-medium text-text-dim"
+				>{t($localeStore, 'tools.fairness.sideA')}</span
 			>
 			<textarea
 				bind:value={sideA}
@@ -78,11 +83,11 @@
 			<p class="text-sm text-text-muted">
 				{t($localeStore, 'tools.fairness.totalA')}: ${totalA.toFixed(2)}
 			</p>
-		</div>
+		</label>
 
-		<div class="space-y-2">
-			<label class="text-sm font-medium text-text-dim"
-				>{t($localeStore, 'tools.fairness.sideB')}</label
+		<label class="block space-y-2">
+			<span class="text-sm font-medium text-text-dim"
+				>{t($localeStore, 'tools.fairness.sideB')}</span
 			>
 			<textarea
 				bind:value={sideB}
@@ -92,7 +97,7 @@
 			<p class="text-sm text-text-muted">
 				{t($localeStore, 'tools.fairness.totalB')}: ${totalB.toFixed(2)}
 			</p>
-		</div>
+		</label>
 	</div>
 
 	{#if isLoading}
@@ -112,16 +117,16 @@
 				<div class="text-right">
 					<p class="text-sm text-text-muted">{t($localeStore, 'tools.fairness.fairnessScore')}</p>
 					<p
-						class="text-3xl font-bold {fairness() >= 90
+						class="text-3xl font-bold {fairnessScore >= 90
 							? 'text-accent'
-							: fairness() >= 70
+							: fairnessScore >= 70
 								? 'text-amber-400'
 								: 'text-danger'}"
 					>
-						{fairness()}%
+						{fairnessScore}%
 					</p>
 					<p class="text-sm text-text-muted">
-						{#if fairness() >= 90}
+						{#if fairnessScore >= 90}
 							{t($localeStore, 'tools.fairness.balanced')}
 						{:else if totalA > totalB}
 							{t($localeStore, 'tools.fairness.favorsA')}

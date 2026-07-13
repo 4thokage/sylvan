@@ -1,8 +1,9 @@
 import type { RequestHandler } from './$types';
+import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import { z } from 'zod/v4';
 
 const UpgradeSchema = z.object({
@@ -16,7 +17,7 @@ export const POST: RequestHandler = async (event) => {
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
-	} as any);
+	} as unknown as RequestEvent);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
 	const body = await request.json();
@@ -30,7 +31,7 @@ export const POST: RequestHandler = async (event) => {
 
 	const { fingerprint } = parsed.data;
 
-	const { data: user } = await supabase
+	const { data: user } = await getSupabase()
 		.from('users')
 		.select('id')
 		.eq('clerk_user_id', clerkUserId)
@@ -40,11 +41,15 @@ export const POST: RequestHandler = async (event) => {
 		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
 	}
 
-	// Link session to user
-	await supabase
-		.from('user_sessions')
-		.update({ user_id: user.id, last_seen_at: new Date().toISOString() })
-		.eq('fingerprint', fingerprint);
+	// Link session to user and migrate anonymous wishlists (enforced by RPC).
+	const { error } = await getSupabase().rpc('upgrade_session', {
+		p_fingerprint: fingerprint,
+		p_user_id: user.id
+	});
+
+	if (error) {
+		return json({ success: false, error: { message: error.message } }, { status: 400 });
+	}
 
 	return json({ success: true, data: { merged: true } });
 };

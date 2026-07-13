@@ -1,9 +1,14 @@
 import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
+
+interface PrintItemRow {
+	quantity: number;
+	cards: { name: string } | null;
+}
 
 export const load: PageServerLoad = async ({ params }) => {
-	const { data: wishlist, error: dbError } = await supabase
+	const { data: wishlist, error: dbError } = await getSupabase()
 		.from('wishlists')
 		.select('*')
 		.eq('id', params.id)
@@ -13,15 +18,19 @@ export const load: PageServerLoad = async ({ params }) => {
 		throw error(404, 'Wishlist not found');
 	}
 
-	const { data: items } = await supabase
+	const { data: items } = await getSupabase()
 		.from('wishlist_items')
-		.select('*')
+		.select('id, quantity, cards(name)')
 		.eq('wishlist_id', params.id);
 
 	return {
 		wishlist: {
 			...wishlist,
-			cards: items || []
+			cards:
+				((items || []) as unknown as PrintItemRow[]).map((item) => ({
+					card_name: item.cards?.name || 'Unknown',
+					quantity: item.quantity
+				})) || []
 		}
 	};
 };

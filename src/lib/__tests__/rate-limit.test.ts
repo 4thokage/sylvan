@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import type { RequestEvent } from '@sveltejs/kit';
 import { createRateLimiter } from '$lib/server/middleware/rate-limit';
 
-function mockRequest(ip = '127.0.0.1'): any {
+function mockRequest(ip = '127.0.0.1'): RequestEvent {
 	return {
 		request: {
 			headers: new Map()
 		},
 		getClientAddress: () => ip
-	};
+	} as unknown as RequestEvent;
 }
 
 describe('createRateLimiter', () => {

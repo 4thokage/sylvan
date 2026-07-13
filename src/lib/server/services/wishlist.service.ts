@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { WishlistRepository } from '$lib/server/repositories/types';
+import type { WishlistRepository, CardCondition } from '$lib/server/repositories/types';
 import { wishlistRepository as defaultRepo } from '$lib/server/repositories/wishlist.repository';
 
 export async function createWishlist(
@@ -8,16 +8,18 @@ export async function createWishlist(
 			card_id: string;
 			qty: number;
 			card_printing_id?: string | null;
-			condition?: string;
-			is_foil?: boolean;
-			is_signed?: boolean;
-			is_altered?: boolean;
-			language?: string;
+			condition?: CardCondition | null;
+			finish?: string | null;
+			aftermarket_signed?: boolean | null;
+			is_altered?: boolean | null;
+			language?: string | null;
 		}>;
+		title?: string | null;
 		creatorFingerprint?: string;
 		ownerName?: string | null;
 		clerkUserId?: string | null;
 		gameSlug?: string;
+		visibility?: string;
 	},
 	repo?: WishlistRepository
 ) {
@@ -38,25 +40,21 @@ export async function createWishlist(
 		id,
 		user_id: userId,
 		game_id: gameId,
+		title: data.title || null,
 		owner_name: data.ownerName || null,
-		creator_fingerprint: data.creatorFingerprint || null
+		creator_fingerprint: data.creatorFingerprint || null,
+		visibility: data.visibility || 'public',
+		items: data.cards.map((card) => ({
+			card_id: card.card_id,
+			card_printing_id: card.card_printing_id || null,
+			quantity: card.qty,
+			condition: card.condition ?? null,
+			finish: card.finish ?? null,
+			aftermarket_signed: card.aftermarket_signed ?? null,
+			is_altered: card.is_altered ?? null,
+			language: card.language ?? null
+		}))
 	});
-
-	if (data.cards.length > 0) {
-		await r.createWishlistItems(
-			data.cards.map((card) => ({
-				wishlist_id: id,
-				card_id: card.card_id,
-				card_printing_id: card.card_printing_id || null,
-				quantity: card.qty,
-				condition: card.condition || 'NM',
-				is_foil: card.is_foil || false,
-				is_signed: card.is_signed || false,
-				is_altered: card.is_altered || false,
-				language: card.language || 'en'
-			}))
-		);
-	}
 
 	return id;
 }

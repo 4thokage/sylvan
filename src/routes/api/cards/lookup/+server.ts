@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { searchRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
-import { getCard, resolveCards } from '$lib/api/card-service';
+import { resolveCards } from '$lib/api/card-service';
 import { parseCardList } from '$lib/parser';
 
 export const POST: RequestHandler = async (event) => {

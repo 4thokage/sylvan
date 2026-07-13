@@ -11,9 +11,10 @@
 	const conditionLabel = $derived(
 		{
 			NM: 'Near Mint',
-			GD: 'Good',
-			PL: 'Played',
-			DM: 'Damaged'
+			LP: 'Lightly Played',
+			MP: 'Moderately Played',
+			HP: 'Heavily Played',
+			DMG: 'Damaged'
 		}[card.condition] || card.condition
 	);
 </script>
@@ -38,8 +39,8 @@
 	<div class="min-w-0 flex-1">
 		<p class="truncate text-sm font-medium text-text-soft">{card.name}</p>
 		<div class="mt-0.5 flex flex-wrap items-center gap-2">
-			{#if card.isFoil}
-				<span class="text-[10px] font-medium text-accent">FOIL</span>
+			{#if card.finish && card.finish !== 'non-foil'}
+				<span class="text-[10px] font-medium text-accent">{card.finish.toUpperCase()}</span>
 			{/if}
 			{#if card.condition}
 				<span class="text-[10px] text-text-dim">{conditionLabel}</span>
@@ -47,7 +48,7 @@
 			{#if card.set}
 				<span class="text-[10px] text-text-muted">{card.set.toUpperCase()}</span>
 			{/if}
-			{#if card.isSigned}
+			{#if card.aftermarketSigned}
 				<span class="text-[10px] text-text-muted">Signed</span>
 			{/if}
 			{#if card.isAltered}

@@ -8,33 +8,22 @@ export const GET: RequestHandler = async () => {
 			formats: [
 				{
 					id: 'text',
-					name: 'Plain Text',
-					description: 'One card per line: "4 Lightning Bolt" or "Lightning Bolt"',
-					example: '4 Lightning Bolt\n2 Sol Ring\n1 Black Lotus'
+					name: 'Plain Text / MTG Arena / Moxfield / Archidekt',
+					description:
+						'One card per line. Arena/Moxfield/Archidekt exports ("4 Lightning Bolt (CLB) 785") are auto-detected; "SB:" sideboard lines are ignored.',
+					example: '4 Lightning Bolt (CLB) 785\n2 Sol Ring (CLB) 123\n1 Black Lotus'
 				},
 				{
 					id: 'csv',
-					name: 'CSV',
-					description: 'Comma-separated: name,quantity',
-					example: 'Lightning Bolt,4\nSol Ring,2\nBlack Lotus,1'
+					name: 'CSV (generic / Deckbox)',
+					description: 'Comma-separated with name,quantity headers (Deckbox tab-separated also works).',
+					example: 'Name,Quantity\nLightning Bolt,4\nSol Ring,2'
 				},
 				{
-					id: 'deckbox',
-					name: 'Deckbox',
-					description: 'Tab-separated export from Deckbox.org',
-					example: 'Name\tCount\nLightning Bolt\t4\nSol Ring\t2'
-				},
-				{
-					id: 'arena',
-					name: 'MTG Arena',
-					description: 'Direct paste from MTG Arena deck export',
-					example: '4 Lightning Bolt (CLB) 785\n2 Sol Ring (CLB) 123'
-				},
-				{
-					id: 'tappedout',
-					name: 'TappedOut',
-					description: 'Paste from TappedOut.net decklist',
-					example: '4 Lightning Bolt\nSB: 2 Sol Ring'
+					id: 'tcgplayer',
+					name: 'TCGplayer CSV',
+					description: 'TCGplayer collection/decklist export (Count, Name, Edition, Foil, … headers).',
+					example: 'Count,Name,Edition,Foil\n4,Lightning Bolt,CLB,false\n2,Sol Ring,CLB,true'
 				}
 			]
 		}

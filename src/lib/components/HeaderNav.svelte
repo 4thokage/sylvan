@@ -3,13 +3,14 @@
 	import { resolve } from '$app/paths';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleToggle from './LocaleToggle.svelte';
+	import NotificationBell from './NotificationBell.svelte';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import ProfileInfoPage from './ProfileInfoPage.svelte';
 	import InboxIcon from './icons/InboxIcon.svelte';
 	import ProfileIcon from './icons/ProfileIcon.svelte';
 	import { theme } from '$lib/stores/theme';
 
-	let { data }: { data: { user?: { is_admin?: boolean } | null } } = $props();
+	let { data }: { data: { user?: { is_admin?: boolean | null } | null } } = $props();
 
 	let clerkCtx = useClerkContext();
 	let isSignedIn = $derived(!!clerkCtx.user || !!data.user);
@@ -83,20 +84,6 @@
 				class="absolute top-full left-0 mt-1 w-56 rounded-lg border border-border bg-surface-raised py-2 shadow-xl"
 			>
 				<a
-					href={resolve('/tools/scan')}
-					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim hover:bg-surface-card hover:text-text"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M3 7V5a2 2 0 012-2h2m0 14H5a2 2 0 01-2-2v-2m14 2h2a2 2 0 002-2v-2M7 3h10M3 17v2a2 2 0 002 2h2m10-2h2a2 2 0 002-2v-2"
-						/>
-					</svg>
-					{t($localeStore, 'tools.scan.title')}
-				</a>
-				<a
 					href={resolve('/tools/value')}
 					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim hover:bg-surface-card hover:text-text"
 				>
@@ -124,20 +111,6 @@
 					</svg>
 					{t($localeStore, 'tools.fairness.title')}
 				</a>
-				<a
-					href={resolve('/tools/life')}
-					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim hover:bg-surface-card hover:text-text"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-						/>
-					</svg>
-					{t($localeStore, 'tools.life.title')}
-				</a>
 			</div>
 		{/if}
 	</div>
@@ -156,6 +129,7 @@
 	<LocaleToggle />
 	<ThemeToggle />
 	{#if isSignedIn}
+		<NotificationBell />
 		<UserButton appearance={clerkAppearance}>
 			<UserButton.MenuItems>
 				<UserButton.Link

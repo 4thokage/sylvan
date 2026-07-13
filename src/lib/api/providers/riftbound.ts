@@ -1,4 +1,4 @@
-import type { TcgProvider, TcgCard, TcgPrinting, TcgSearchResult } from './types';
+import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
 
 const API_BASE = 'https://api.riftcodex.com';
 
@@ -57,6 +57,29 @@ interface RiftcodexCard {
 	};
 }
 
+function buildRefs(raw: RiftcodexCard): TcgExternalRef[] {
+	const refs: TcgExternalRef[] = [
+		{
+			providerSlug: 'riftbound',
+			identifierType: 'riftbound_id',
+			externalId: raw.riftbound_id
+		},
+		{
+			providerSlug: 'riftbound',
+			identifierType: 'riftbound_card_id',
+			externalId: raw.id
+		}
+	];
+	return refs;
+}
+
+function detectFinish(raw: RiftcodexCard): string {
+	const tags = (raw.tags || []).map((t) => t.toLowerCase());
+	if (tags.includes('foil') || tags.includes('holo')) return 'holo';
+	if (raw.metadata?.signature) return 'non-foil';
+	return 'non-foil';
+}
+
 function mapToTcgCard(raw: RiftcodexCard): TcgCard {
 	return {
 		id: raw.id,
@@ -65,28 +88,16 @@ function mapToTcgCard(raw: RiftcodexCard): TcgCard {
 		imageUrl: raw.media?.image_url || null,
 		manaCost: raw.attributes?.energy != null ? String(raw.attributes.energy) : null,
 		typeLine: raw.classification?.type || null,
-		oracleId: raw.riftbound_id || null,
 		setCode: raw.set?.set_id || '',
 		setName: raw.set?.label || '',
 		collectorNumber: raw.collector_number != null ? String(raw.collector_number) : '',
 		rarity: raw.classification?.rarity || '',
-		prices: { usd: null, usdFoil: null, eur: null, eurFoil: null },
+		language: 'en',
+		finish: detectFinish(raw),
+		factorySigned: raw.metadata?.signature || false,
+		prices: { usd: null, eur: null },
+		externalRefs: buildRefs(raw),
 		gameSlug: 'riftbound'
-	};
-}
-
-function cardToPrinting(raw: RiftcodexCard): TcgPrinting {
-	return {
-		id: raw.id,
-		setCode: raw.set?.set_id || '',
-		setName: raw.set?.label || '',
-		collectorNumber: raw.collector_number != null ? String(raw.collector_number) : '',
-		rarity: raw.classification?.rarity || '',
-		imageUrl: raw.media?.image_url || null,
-		manaCost: raw.attributes?.energy != null ? String(raw.attributes.energy) : null,
-		price: null,
-		priceFoil: null,
-		releasedAt: null
 	};
 }
 
@@ -94,11 +105,12 @@ export const riftboundProvider: TcgProvider = {
 	gameSlug: 'riftbound',
 	gameName: 'Riftbound',
 
-	normalizeName(name: string): string {
-		return normalize(name);
-	},
+	normalizeName: normalize,
 
-	async searchCards(query: string, limit = 25): Promise<TcgSearchResult> {
+	async searchCards(
+		query: string,
+		limit = 25
+	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
 		try {
 			const response = await fetch(
 				`${API_BASE}/cards/search?query=${encodeURIComponent(query)}&size=${limit}`,
@@ -119,6 +131,7 @@ export const riftboundProvider: TcgProvider = {
 		return this.getCard(name);
 	},
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getCard(name: string, _set?: string, _collectorNumber?: string): Promise<TcgCard | null> {
 		try {
 			let response = await fetch(`${API_BASE}/cards/name?exact=${encodeURIComponent(name)}`, {
@@ -150,6 +163,7 @@ export const riftboundProvider: TcgProvider = {
 		return cards;
 	},
 
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getAllPrintings(_cardName: string): Promise<TcgPrinting[]> {
 		return [];
 	}

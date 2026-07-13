@@ -1,24 +1,100 @@
-import type { TradeRepository, WishlistRow } from '$lib/server/repositories/types';
+import { getSupabase } from '$lib/server/supabase';
+import type { TradeRepository, WishlistRow, CardCondition } from '$lib/server/repositories/types';
 import { tradeRepository as defaultRepo } from '$lib/server/repositories/trade.repository';
 
 export interface TradeMatch {
 	wishlistId: string;
 	wishlistOwner: string;
 	userId: string | null;
-	cardsYouHave: Array<{ name: string; qty: number; price: number }>;
+	cardsYouHave: Array<{
+		name: string;
+		qty: number;
+		price: number;
+		userCardId: string;
+		finish: string | null;
+		condition: string;
+	}>;
 	valueYouGive: number;
 	score: number;
 }
 
+export interface TradeItemInput {
+	userCardId: string;
+	quantity: number;
+}
+
+interface CollectionStack {
+	userCardId: string;
+	cardPrintingId: string;
+	cardId: string;
+	cardName: string;
+	quantity: number;
+	condition: CardCondition;
+	finish: string | null;
+	aftermarketSigned: boolean;
+	isAltered: boolean;
+	language: string | null;
+	isTradeable: boolean;
+	price: number;
+}
+
+const CONDITION_RANK: Record<CardCondition, number> = {
+	NM: 1,
+	LP: 2,
+	MP: 3,
+	HP: 4,
+	DMG: 5
+};
+
+function conditionMatches(required: CardCondition | null, stack: CardCondition) {
+	if (!required) return true;
+	return CONDITION_RANK[stack] <= CONDITION_RANK[required];
+}
+
+function filterMatches(
+	item: {
+		card_printing_id: string | null;
+		condition: CardCondition | null;
+		finish: string | null;
+		aftermarket_signed: boolean | null;
+		is_altered: boolean | null;
+		language: string | null;
+	},
+	stack: CollectionStack
+) {
+	if (item.card_printing_id && item.card_printing_id !== stack.cardPrintingId) return false;
+	if (!conditionMatches(item.condition, stack.condition)) return false;
+	if (item.finish && item.finish !== stack.finish) return false;
+	if (item.aftermarket_signed !== null && item.aftermarket_signed !== stack.aftermarketSigned)
+		return false;
+	if (item.is_altered !== null && item.is_altered !== stack.isAltered) return false;
+	if (item.language && item.language !== stack.language) return false;
+	return true;
+}
+
 export async function findMatchesForCollection(
-	collection: Array<{ cardPrintingId: string; qty: number; isTradeable: boolean }>,
+	currentUserDbId: string | null,
+	collection: Array<{
+		id: string;
+		cardPrintingId: string;
+		cardName: string;
+		quantity: number;
+		condition: CardCondition;
+		finish: string | null;
+		aftermarketSigned: boolean;
+		isAltered: boolean;
+		language: string | null;
+		isTradeable: boolean;
+		marketPriceEur: number | null;
+	}>,
 	repo?: TradeRepository
 ) {
 	const r = repo || defaultRepo;
 
-	const printingIds = collection.filter((c) => c.isTradeable).map((c) => c.cardPrintingId);
-	if (printingIds.length === 0) return [];
+	const tradeableStacks = collection.filter((c) => c.isTradeable);
+	if (tradeableStacks.length === 0) return [];
 
+	const printingIds = tradeableStacks.map((c) => c.cardPrintingId);
 	const printings = await r.getCardIdsByPrintingIds(printingIds);
 
 	const cardIdByPrinting = new Map<string, string>();
@@ -26,125 +102,120 @@ export async function findMatchesForCollection(
 		cardIdByPrinting.set(p.id, p.card_id);
 	}
 
-	const collectionMap = new Map<string, number>();
-	for (const c of collection) {
-		if (!c.isTradeable) continue;
+	const stacks: CollectionStack[] = [];
+	for (const c of tradeableStacks) {
 		const cardId = cardIdByPrinting.get(c.cardPrintingId);
 		if (!cardId) continue;
-		collectionMap.set(cardId, (collectionMap.get(cardId) || 0) + c.qty);
+		stacks.push({
+			userCardId: c.id,
+			cardPrintingId: c.cardPrintingId,
+			cardId,
+			cardName: c.cardName,
+			quantity: c.quantity,
+			condition: c.condition,
+			finish: c.finish,
+			aftermarketSigned: c.aftermarketSigned,
+			isAltered: c.isAltered,
+			language: c.language,
+			isTradeable: true,
+			price: c.marketPriceEur || 0
+		});
 	}
 
-	if (collectionMap.size === 0) return [];
+	const stacksByCardId = new Map<string, CollectionStack[]>();
+	for (const s of stacks) {
+		const list = stacksByCardId.get(s.cardId) || [];
+		list.push(s);
+		stacksByCardId.set(s.cardId, list);
+	}
 
-	const wishlists = await r.getPublicWishlists(200, 0);
+	if (stacksByCardId.size === 0) return [];
+
+	let wishlists = await r.getPublicWishlists(200, 0);
+	if (currentUserDbId) {
+		wishlists = wishlists.filter((w) => w.user_id !== currentUserDbId);
+	}
 	if (wishlists.length === 0) return [];
+
+	const blockedSet = new Set<string>();
+	if (currentUserDbId) {
+		const blocked = await r.getBlockedUserIds(currentUserDbId);
+		const blockedBy = await r.getUsersBlocking(currentUserDbId);
+		for (const id of [...blocked, ...blockedBy]) blockedSet.add(id);
+	}
+	wishlists = wishlists.filter((w) => !w.user_id || !blockedSet.has(w.user_id));
 
 	const wishlistIds = wishlists.map((w: WishlistRow) => w.id);
 	const items = await r.getWishlistItems(wishlistIds);
 	if (items.length === 0) return [];
 
-	const wishlistCardMap = new Map<string, Array<{ cardId: string; qty: number }>>();
+	const itemsByWishlist = new Map<string, typeof items>();
 	for (const item of items) {
-		const existing = wishlistCardMap.get(item.wishlist_id) || [];
-		existing.push({ cardId: item.card_id, qty: item.quantity });
-		wishlistCardMap.set(item.wishlist_id, existing);
+		const list = itemsByWishlist.get(item.wishlist_id) || [];
+		list.push(item);
+		itemsByWishlist.set(item.wishlist_id, list);
 	}
 
-	const allMatchedCardIds = new Set<string>();
 	const matches: TradeMatch[] = [];
 
 	for (const wishlist of wishlists) {
-		const wishlistCards = wishlistCardMap.get(wishlist.id) || [];
-		const cardsYouHave: Array<{ name: string; qty: number; price: number }> = [];
-
+		const wishlistItems = itemsByWishlist.get(wishlist.id) || [];
+		const cardsYouHave: TradeMatch['cardsYouHave'] = [];
 		let valueYouGive = 0;
 		let wishlistValue = 0;
 
-		for (const card of wishlistCards) {
-			const inCollection = collectionMap.get(card.cardId) || 0;
+		for (const item of wishlistItems) {
+			const candidates = stacksByCardId.get(item.card_id) || [];
+			let remaining = item.quantity;
 
-			if (inCollection > 0) {
-				const canGive = Math.min(card.qty, inCollection);
-				allMatchedCardIds.add(card.cardId);
-				cardsYouHave.push({ name: card.cardId, qty: canGive, price: 0 });
-				valueYouGive += canGive;
+			for (const stack of candidates) {
+				if (remaining <= 0) break;
+				if (!filterMatches(item, stack)) continue;
+				const qty = Math.min(remaining, stack.quantity);
+				remaining -= qty;
+
+				cardsYouHave.push({
+					name: stack.cardName,
+					qty,
+					price: stack.price,
+					userCardId: stack.userCardId,
+					finish: stack.finish,
+					condition: stack.condition
+				});
+				valueYouGive += qty * stack.price;
 			}
 
-			wishlistValue += card.qty;
+			wishlistValue += item.quantity;
 		}
 
 		if (cardsYouHave.length > 0) {
-			const valueRatio = wishlistValue > 0 ? Math.min(valueYouGive / wishlistValue, 1) : 0;
-			const cardRatio = cardsYouHave.length / Math.max(wishlistCards.length, 1);
+			const valueRatio =
+				wishlistValue > 0
+					? Math.min(cardsYouHave.reduce((s, c) => s + c.qty, 0) / wishlistValue, 1)
+					: 0;
+			const cardRatio =
+				new Set(cardsYouHave.map((c) => c.name)).size / Math.max(wishlistItems.length, 1);
 			const score = Math.round(valueRatio * 50 + cardRatio * 50);
 
 			matches.push({
 				wishlistId: wishlist.id,
-				wishlistOwner: wishlist.owner_name || 'Anonymous',
+				wishlistOwner: wishlist.username || wishlist.owner_name || 'Anonymous',
 				userId: wishlist.user_id,
 				cardsYouHave,
-				valueYouGive,
+				valueYouGive: Math.round(valueYouGive * 100) / 100,
 				score
 			});
 		}
 	}
 
-	if (allMatchedCardIds.size > 0) {
-		const prices = await r.getCardPrintingPrices([...allMatchedCardIds]);
-		const priceByCardId = new Map(prices.map((p) => [p.cardId, p.price]));
-		for (const match of matches) {
-			for (const card of match.cardsYouHave) {
-				card.price = priceByCardId.get(card.name) || 0;
-			}
-		}
-	}
-
-	return matches.sort((a, b) => b.score - a.score);
-}
-
-export async function findUsersWhoWantCards(
-	cardPrintingIds: string[],
-	currentUserId: string,
-	repo?: TradeRepository
-): Promise<TradeMatch[]> {
-	const r = repo || defaultRepo;
-
-	const printings = await r.getCardIdsByPrintingIds(cardPrintingIds);
-	const cardIds = printings.map((p) => p.card_id);
-	if (cardIds.length === 0) return [];
-
-	const items = await r.getWishlistItemsByCardIds(cardIds);
-	if (items.length === 0) return [];
-
-	const wishlistIds = [...new Set(items.map((i) => i.wishlist_id))];
-	const wishlists = (await r.getPublicWishlists(200, 0)).filter(
-		(w) => wishlistIds.includes(w.id) && w.user_id !== currentUserId
-	);
-
-	return wishlists.map((w) => {
-		const wantedItems = items.filter((i) => i.wishlist_id === w.id);
-		const cardsYouHave = wantedItems.map((i) => ({
-			name: i.card_id,
-			qty: i.quantity,
-			price: 0
-		}));
-
-		return {
-			wishlistId: w.id,
-			wishlistOwner: w.owner_name || 'Anonymous',
-			userId: w.user_id,
-			cardsYouHave,
-			valueYouGive: cardsYouHave.length,
-			score: Math.round((cardsYouHave.length / Math.max(cardsYouHave.length, 1)) * 100)
-		};
-	});
+	return matches.sort((a, b) => b.score - a.score || b.valueYouGive - a.valueYouGive);
 }
 
 export async function createTradeProposal(
 	proposerClerkId: string,
 	recipientId: string,
-	offeredCardIds: string[],
-	requestedCardIds: string[],
+	offeredItems: TradeItemInput[],
+	requestedItems: TradeItemInput[],
 	note?: string,
 	repo?: TradeRepository
 ) {
@@ -153,31 +224,45 @@ export async function createTradeProposal(
 	const proposerId = await r.getUserIdByClerkId(proposerClerkId);
 	if (!proposerId) throw new Error('Proposer not found');
 
-	const trade = await r.createTrade({
-		proposer_id: proposerId,
-		recipient_id: recipientId,
-		proposer_note: note || null
+	const { data: tradeId, error } = await getSupabase().rpc('create_trade', {
+		p_proposer_id: proposerId,
+		p_recipient_id: recipientId,
+		p_offered_items: offeredItems.map((i) => ({
+			user_card_id: i.userCardId,
+			quantity: i.quantity
+		})),
+		p_requested_items: requestedItems.map((i) => ({
+			user_card_id: i.userCardId,
+			quantity: i.quantity
+		})),
+		p_note: note || null
 	});
 
-	const offer = await r.createTradeOffer({
-		trade_id: trade.id,
-		offered_by: proposerId
-	});
+	if (error) throw new Error(error.message);
+	if (!tradeId) throw new Error('Failed to create trade');
 
-	const items = [
-		...offeredCardIds.map((id) => ({ offer_id: offer.id, user_card_id: id, side: 'offer' })),
-		...requestedCardIds.map((id) => ({ offer_id: offer.id, user_card_id: id, side: 'request' }))
-	];
-
-	await r.createTradeOfferItems(items);
-	await r.updateCurrentOffer(trade.id, offer.id);
-
-	return trade;
+	return { id: tradeId as string };
 }
 
 export async function getTradeById(tradeId: string, repo?: TradeRepository) {
 	const r = repo || defaultRepo;
 	return r.getTradeById(tradeId);
+}
+
+export async function getTradeDetails(tradeId: string) {
+	const { data, error } = await getSupabase().rpc('get_trade_details', {
+		p_trade_id: tradeId
+	});
+	if (error) throw new Error(error.message);
+	return data as Record<string, unknown> | null;
+}
+
+export async function getCounterpartyStacks(tradeId: string) {
+	const { data, error } = await getSupabase().rpc('get_counterparty_stacks', {
+		p_trade_id: tradeId
+	});
+	if (error) throw new Error(error.message);
+	return (data || []) as Array<Record<string, unknown>>;
 }
 
 export async function getTradesForUser(clerkUserId: string, repo?: TradeRepository) {
@@ -198,18 +283,21 @@ export async function updateTradeStatus(
 	const userId = await r.getUserIdByClerkId(clerkUserId);
 	if (!userId) throw new Error('User not found');
 
-	const trade = await r.getTradeById(tradeId);
-	if (!trade) throw new Error('Trade not found');
-
-	if (trade.proposer_id !== userId && trade.recipient_id !== userId) {
-		throw new Error('Not a participant in this trade');
+	if (status === 'cancelled') {
+		const { error } = await getSupabase().rpc('cancel_trade', {
+			p_trade_id: tradeId,
+			p_user_id: userId
+		});
+		if (error) throw new Error(error.message);
+		return { success: true };
 	}
 
-	if (status === 'accepted') {
-		await r.updateTradeStatus(tradeId, 'accepted', new Date().toISOString());
-	} else {
-		await r.updateTradeStatus(tradeId, status);
-	}
+	const { error } = await getSupabase().rpc('respond_to_offer', {
+		p_trade_id: tradeId,
+		p_user_id: userId,
+		p_action: status === 'accepted' ? 'accept' : 'reject'
+	});
+	if (error) throw new Error(error.message);
 
 	return { success: true };
 }
@@ -217,9 +305,9 @@ export async function updateTradeStatus(
 export async function createCounterOffer(
 	clerkUserId: string,
 	tradeId: string,
-	offeredCardIds: string[],
-	requestedCardIds: string[],
-	notes?: string,
+	offeredItems: TradeItemInput[],
+	requestedItems: TradeItemInput[],
+	note?: string,
 	repo?: TradeRepository
 ) {
 	const r = repo || defaultRepo;
@@ -227,31 +315,24 @@ export async function createCounterOffer(
 	const userId = await r.getUserIdByClerkId(clerkUserId);
 	if (!userId) throw new Error('User not found');
 
-	const trade = await r.getTradeById(tradeId);
-	if (!trade) throw new Error('Trade not found');
-
-	if (trade.recipient_id !== userId) {
-		throw new Error('Only the recipient can counter-offer');
-	}
-
-	if (trade.status !== 'pending') {
-		throw new Error('Trade is not in pending status');
-	}
-
-	const offer = await r.createTradeOffer({
-		trade_id: tradeId,
-		offered_by: userId
+	const { data: offerId, error } = await getSupabase().rpc('create_counter_offer', {
+		p_trade_id: tradeId,
+		p_offered_by: userId,
+		p_offered_items: offeredItems.map((i) => ({
+			user_card_id: i.userCardId,
+			quantity: i.quantity
+		})),
+		p_requested_items: requestedItems.map((i) => ({
+			user_card_id: i.userCardId,
+			quantity: i.quantity
+		})),
+		p_note: note || null
 	});
 
-	const items = [
-		...offeredCardIds.map((id) => ({ offer_id: offer.id, user_card_id: id, side: 'offer' })),
-		...requestedCardIds.map((id) => ({ offer_id: offer.id, user_card_id: id, side: 'request' }))
-	];
+	if (error) throw new Error(error.message);
+	if (!offerId) throw new Error('Failed to create counter offer');
 
-	await r.createTradeOfferItems(items);
-	await r.updateCurrentOffer(tradeId, offer.id);
-
-	return { success: true };
+	return { success: true, offerId: offerId as string };
 }
 
 export async function getTradeOffers(tradeId: string, repo?: TradeRepository) {

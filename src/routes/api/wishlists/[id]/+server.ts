@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 
 export const GET: RequestHandler = async (event) => {
@@ -11,7 +11,7 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	try {
-		const { data: wishlist } = await supabase
+		const { data: wishlist } = await getSupabase()
 			.from('wishlists')
 			.select('*')
 			.eq('id', params.id)
@@ -21,7 +21,7 @@ export const GET: RequestHandler = async (event) => {
 			return json({ success: false, error: { message: 'Wishlist not found' } }, { status: 404 });
 		}
 
-		const { data: items } = await supabase
+		const { data: items } = await getSupabase()
 			.from('wishlist_items')
 			.select('*')
 			.eq('wishlist_id', params.id);

@@ -1,9 +1,9 @@
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import type { UserRepository, UserRow } from './types';
 
 export const userRepository: UserRepository = {
 	async getUserIdByClerkId(clerkUserId: string) {
-		const { data: user } = await supabase
+		const { data: user } = await getSupabase()
 			.from('users')
 			.select('id')
 			.eq('clerk_user_id', clerkUserId)
@@ -12,7 +12,7 @@ export const userRepository: UserRepository = {
 	},
 
 	async ensureUser(clerkUserId: string) {
-		const { data: existing, error: selectError } = await supabase
+		const { data: existing, error: selectError } = await getSupabase()
 			.from('users')
 			.select('id, username')
 			.eq('clerk_user_id', clerkUserId)
@@ -23,7 +23,7 @@ export const userRepository: UserRepository = {
 
 		const suggestedName = `user-${clerkUserId.slice(0, 8)}`;
 
-		const { data: created, error: insertError } = await supabase
+		const { data: created, error: insertError } = await getSupabase()
 			.from('users')
 			.insert({
 				clerk_user_id: clerkUserId,
@@ -37,7 +37,7 @@ export const userRepository: UserRepository = {
 	},
 
 	async getUserProfile(clerkUserId: string) {
-		const { data: user, error } = await supabase
+		const { data: user, error } = await getSupabase()
 			.from('users')
 			.select('*')
 			.eq('clerk_user_id', clerkUserId)
@@ -61,7 +61,7 @@ export const userRepository: UserRepository = {
 
 		safe.updated_at = new Date().toISOString();
 
-		const { data, error } = await supabase
+		const { data, error } = await getSupabase()
 			.from('users')
 			.update(safe)
 			.eq('clerk_user_id', clerkUserId)

@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
 
@@ -13,32 +13,31 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	try {
-		const { data: existing } = await supabase
-			.from('users')
-			.select('id, username, is_admin')
-			.eq('clerk_user_id', clerkUserId)
-			.single();
+		const { data: userId, error: rpcError } = await getSupabase().rpc('ensure_user', {
+			p_clerk_user_id: clerkUserId
+		});
 
-		if (existing) {
-			return json({ success: true, data: { user: existing, created: false } });
+		if (rpcError || !userId) {
+			return json(
+				{ success: false, error: { message: rpcError?.message || 'Failed to sync user' } },
+				{ status: 500 }
+			);
 		}
 
-		const suggestedName = `user-${clerkUserId.slice(0, 8)}`;
-
-		const { data: created, error } = await supabase
+		const { data: user, error: selectError } = await getSupabase()
 			.from('users')
-			.insert({
-				clerk_user_id: clerkUserId,
-				username: suggestedName
-			})
 			.select('id, username, is_admin')
+			.eq('id', userId)
 			.single();
 
-		if (error) {
-			return json({ success: false, error: { message: error.message } }, { status: 500 });
+		if (selectError || !user) {
+			return json(
+				{ success: false, error: { message: selectError?.message || 'Failed to load user' } },
+				{ status: 500 }
+			);
 		}
 
-		return json({ success: true, data: { user: created, created: true } });
+		return json({ success: true, data: { user, created: true } });
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Failed to sync user';
 		return json({ success: false, error: { message } }, { status: 500 });

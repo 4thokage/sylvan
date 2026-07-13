@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WishlistCard, CardPrint } from '$lib/types';
+	import type { WishlistCard, CardPrinting, CardCondition } from '$lib/types';
 
 	interface Props {
 		card: WishlistCard;
@@ -13,45 +13,23 @@
 
 	let { card, isOpen, gameSlug, isCollection, onSave, onRemove, onClose }: Props = $props();
 
-	let printings = $state<CardPrint[]>([]);
+	let printings = $state<CardPrinting[]>([]);
 	let isLoadingPrintings = $state(false);
 	let printingsError = $state<string | null>(null);
 
-	let condition = $state('NM');
-	let isFoil = $state(false);
-	let isSigned = $state(false);
+	let condition = $state<CardCondition>('NM');
+	let aftermarketSigned = $state(false);
 	let isAltered = $state(false);
-	let language = $state('en');
 	let isTradeable = $state(true);
-	let selectedPrint = $state<CardPrint | null>(null);
-	let selectedPrintIndex = $state(-1);
+	let selectedPrint = $state<CardPrinting | null>(null);
 
-	let isMobile = $state(false);
-
-	const CONDITIONS = [
+	const CONDITIONS: Array<{ value: CardCondition; label: string }> = [
 		{ value: 'NM', label: 'Near Mint' },
-		{ value: 'GD', label: 'Good' },
-		{ value: 'PL', label: 'Played' },
-		{ value: 'DM', label: 'Damaged' }
+		{ value: 'LP', label: 'Lightly Played' },
+		{ value: 'MP', label: 'Moderately Played' },
+		{ value: 'HP', label: 'Heavily Played' },
+		{ value: 'DMG', label: 'Damaged' }
 	];
-
-	const LANGUAGES = [
-		{ value: 'en', label: 'English' },
-		{ value: 'ja', label: 'Japanese' },
-		{ value: 'de', label: 'German' },
-		{ value: 'fr', label: 'French' },
-		{ value: 'es', label: 'Spanish' },
-		{ value: 'it', label: 'Italian' },
-		{ value: 'pt', label: 'Portuguese' },
-		{ value: 'ko', label: 'Korean' },
-		{ value: 'zh', label: 'Chinese' }
-	];
-
-	$effect(() => {
-		if (typeof window !== 'undefined') {
-			isMobile = window.matchMedia('(hover: none)').matches;
-		}
-	});
 
 	$effect(() => {
 		if (isOpen && printings.length === 0 && !isLoadingPrintings && !printingsError) {
@@ -62,14 +40,11 @@
 	$effect(() => {
 		if (isOpen) {
 			condition = card.condition;
-			isFoil = card.isFoil;
-			isSigned = card.isSigned;
+			aftermarketSigned = card.aftermarketSigned;
 			isAltered = card.isAltered;
-			language = card.language;
 			isTradeable = card.isTradeable ?? true;
-			selectedPrintIndex = card.selectedPrintIndex ?? -1;
-			if (card.printings && card.selectedPrintIndex !== undefined) {
-				selectedPrint = card.printings[card.selectedPrintIndex] || null;
+			if (card.printings && card.cardPrintingId) {
+				selectedPrint = card.printings.find((p) => p.id === card.cardPrintingId) || null;
 			} else {
 				selectedPrint = null;
 			}
@@ -87,15 +62,21 @@
 			if (result.success && result.data?.printings) {
 				printings = result.data.printings.map((p: Record<string, unknown>) => ({
 					id: p.id as string,
-					name: card.name,
-					set: p.setCode as string,
+					cardId: '',
+					setCode: p.setCode as string,
 					setName: p.setName as string,
-					collectorNumber: p.collectorNumber as string,
-					rarity: p.rarity as string,
-					price: p.price as string | null,
-					priceFoil: p.priceFoil as string | null,
+					collectorNumber: p.collectorNumber as string | null,
+					rarity: p.rarity as string | null,
+					prices: {
+						usd: (p.price as string) || null,
+						eur: (p.priceEur as string) || null
+					},
 					imageUrl: p.imageUrl as string | null,
-					manaCost: p.manaCost as string | null
+					manaCost: p.manaCost as string | null,
+					language: p.language as string,
+					finish: p.finish as CardPrinting['finish'],
+					factorySigned: p.factorySigned as boolean,
+					releasedAt: null
 				}));
 			} else {
 				throw new Error(result.error?.message || 'Failed to load printings');
@@ -115,34 +96,25 @@
 		if (e.key === 'Escape') onClose();
 	}
 
-	function selectPrinting(print: CardPrint, index: number) {
+	function selectPrinting(print: CardPrinting) {
 		selectedPrint = print;
-		selectedPrintIndex = index;
 	}
 
 	function handleSave() {
 		const updated: WishlistCard = {
 			...card,
 			condition,
-			isFoil,
-			isSigned,
+			finish: selectedPrint?.finish || card.finish,
+			language: selectedPrint?.language || card.language,
+			aftermarketSigned,
 			isAltered,
-			language,
 			isTradeable: isCollection ? isTradeable : card.isTradeable,
-			selectedPrintIndex: selectedPrintIndex >= 0 ? selectedPrintIndex : undefined,
+			cardPrintingId: selectedPrint?.id || card.cardPrintingId,
 			printings: printings.length > 0 ? printings : card.printings,
 			imageUrl: selectedPrint?.imageUrl || card.imageUrl,
 			manaCost: selectedPrint?.manaCost || card.manaCost,
-			prices: selectedPrint
-				? {
-						usd: selectedPrint.price,
-						usdFoil: selectedPrint.priceFoil,
-						eur: card.prices?.eur ?? null,
-						eurFoil: card.prices?.eurFoil ?? null,
-						tix: card.prices?.tix ?? null
-					}
-				: card.prices,
-			set: selectedPrint?.set || card.set,
+			prices: selectedPrint ? selectedPrint.prices : card.prices,
+			set: selectedPrint?.setCode || card.set,
 			collectorNumber: selectedPrint?.collectorNumber || card.collectorNumber
 		};
 		onSave(updated);
@@ -157,10 +129,10 @@
 <svelte:window onkeydown={isOpen ? handleKeydown : undefined} />
 
 {#if isOpen}
-	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center"
 		onclick={handleBackdropClick}
+		onkeydown={handleKeydown}
 		role="dialog"
 		aria-modal="true"
 		aria-label="Edit card attributes"
@@ -205,15 +177,15 @@
 						<p class="text-sm text-danger">{printingsError}</p>
 					{:else if printings.length > 0}
 						<div class="flex gap-3 overflow-x-auto pb-2">
-							{#each printings as print, index (print.id)}
+							{#each printings as print (print.id)}
 								<button
 									type="button"
-									class="flex-shrink-0 rounded-lg border-2 p-1 text-left transition-colors {selectedPrintIndex ===
-									index
+									class="flex-shrink-0 rounded-lg border-2 p-1 text-left transition-colors {selectedPrint?.id ===
+									print.id
 										? 'border-accent bg-surface-card'
 										: 'border-transparent hover:border-border-strong'}"
-									onclick={() => selectPrinting(print, index)}
-									aria-label="{print.setName} ({print.set}) #{print.collectorNumber}"
+									onclick={() => selectPrinting(print)}
+									aria-label="{print.setName} ({print.setCode}) #{print.collectorNumber}"
 								>
 									<div class="h-20 w-14 overflow-hidden rounded bg-surface-card">
 										{#if print.imageUrl}
@@ -227,9 +199,10 @@
 									</div>
 									<div class="mt-1 px-1">
 										<p class="text-[10px] font-medium uppercase text-text-soft">
-											{print.set}
+											{print.setCode}
 										</p>
 										<p class="text-[10px] text-text-muted">#{print.collectorNumber}</p>
+										<p class="text-[10px] text-accent">{print.finish}</p>
 									</div>
 								</button>
 							{/each}
@@ -240,11 +213,11 @@
 				<!-- Condition -->
 				<div>
 					<span class="mb-2 block text-sm font-medium text-text-dim">Condition</span>
-					<div class="grid grid-cols-4 gap-2">
-						{#each CONDITIONS as cond}
+					<div class="grid grid-cols-5 gap-2">
+						{#each CONDITIONS as cond (cond.value)}
 							<button
 								type="button"
-								class="rounded-lg border px-3 py-2 text-sm transition-colors {condition ===
+								class="rounded-lg border px-2 py-2 text-xs transition-colors {condition ===
 								cond.value
 									? 'border-accent bg-accent-bg/10 text-accent'
 									: 'border-border-strong text-text-dim hover:bg-surface-card'}"
@@ -260,44 +233,18 @@
 				<div class="grid grid-cols-2 gap-4">
 					<button
 						type="button"
-						class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {isFoil
+						class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {aftermarketSigned
 							? 'bg-accent-bg/10 text-accent border-accent'
 							: 'text-text-dim hover:bg-surface-card'}"
-						onclick={() => (isFoil = !isFoil)}
-					>
-						<span>Foil</span>
-						<span
-							class="flex h-5 w-5 items-center justify-center rounded-full {isFoil
-								? 'bg-accent text-white'
-								: 'bg-surface-card'}"
-						>
-							{#if isFoil}
-								<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="3"
-										d="M5 13l4 4L19 7"
-									/>
-								</svg>
-							{/if}
-						</span>
-					</button>
-
-					<button
-						type="button"
-						class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {isSigned
-							? 'bg-accent-bg/10 text-accent border-accent'
-							: 'text-text-dim hover:bg-surface-card'}"
-						onclick={() => (isSigned = !isSigned)}
+						onclick={() => (aftermarketSigned = !aftermarketSigned)}
 					>
 						<span>Signed</span>
 						<span
-							class="flex h-5 w-5 items-center justify-center rounded-full {isSigned
+							class="flex h-5 w-5 items-center justify-center rounded-full {aftermarketSigned
 								? 'bg-accent text-white'
 								: 'bg-surface-card'}"
 						>
-							{#if isSigned}
+							{#if aftermarketSigned}
 								<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path
 										stroke-linecap="round"
@@ -365,32 +312,17 @@
 					{/if}
 				</div>
 
-				<!-- Language -->
-				<div>
-					<span class="mb-2 block text-sm font-medium text-text-dim">Language</span>
-					<select
-						bind:value={language}
-						class="w-full rounded-lg border border-border-strong bg-surface-card px-3 py-2 text-sm text-text-soft focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
-					>
-						{#each LANGUAGES as lang}
-							<option value={lang.value}>{lang.label}</option>
-						{/each}
-					</select>
-				</div>
-
 				<!-- Selected printing price preview -->
 				{#if selectedPrint}
 					<div class="rounded-lg border border-border bg-surface-card p-3">
 						<div class="flex items-center justify-between text-sm">
-							<span class="text-text-dim">{selectedPrint.setName} ({selectedPrint.set})</span>
-							<span class="text-text-soft">{formatPrice(selectedPrint.price)}</span>
+							<span class="text-text-dim">{selectedPrint.setName} ({selectedPrint.setCode})</span>
+							<span class="text-text-soft">{formatPrice(selectedPrint.prices.usd)}</span>
 						</div>
-						{#if selectedPrint.priceFoil}
-							<div class="mt-1 flex items-center justify-between text-sm">
-								<span class="text-text-muted">Foil</span>
-								<span class="text-accent">{formatPrice(selectedPrint.priceFoil)}</span>
-							</div>
-						{/if}
+						<div class="mt-1 flex items-center justify-between text-sm">
+							<span class="text-text-muted">EUR</span>
+							<span class="text-text">{formatPrice(selectedPrint.prices.eur)}</span>
+						</div>
 					</div>
 				{/if}
 			</div>

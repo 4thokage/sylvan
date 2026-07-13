@@ -1,3 +1,9 @@
+export interface TcgExternalRef {
+	providerSlug: string;
+	identifierType: string;
+	externalId: string;
+}
+
 export interface TcgCard {
 	id: string;
 	name: string;
@@ -5,17 +11,18 @@ export interface TcgCard {
 	imageUrl: string | null;
 	manaCost: string | null;
 	typeLine: string | null;
-	oracleId: string | null;
 	setCode: string;
 	setName: string;
 	collectorNumber: string;
 	rarity: string;
+	language: string;
+	finish: string;
+	factorySigned: boolean;
 	prices: {
 		usd: string | null;
-		usdFoil: string | null;
 		eur: string | null;
-		eurFoil: string | null;
 	};
+	externalRefs: TcgExternalRef[];
 	gameSlug: string;
 }
 
@@ -27,9 +34,13 @@ export interface TcgPrinting {
 	rarity: string;
 	imageUrl: string | null;
 	manaCost: string | null;
+	language: string;
+	finish: string;
+	factorySigned: boolean;
 	price: string | null;
-	priceFoil: string | null;
+	priceEur: string | null;
 	releasedAt: string | null;
+	externalRefs: TcgExternalRef[];
 }
 
 export interface TcgSearchResult {

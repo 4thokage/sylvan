@@ -1,18 +1,46 @@
 <script lang="ts">
 	import { getCreatorFingerprint } from '$lib/device';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
-	import type { WishlistCard, LookupResult } from '$lib/types';
+	import { SvelteMap } from 'svelte/reactivity';
+	import type { WishlistCard, CardPrices } from '$lib/types';
 	import PriceTooltip from '$lib/components/PriceTooltip.svelte';
+
+	interface LoadedWishlistItem {
+		id: string;
+		card_name: string;
+		image_url: string | null;
+		quantity: number;
+		condition: 'NM' | 'LP' | 'MP' | 'HP' | 'DMG' | null;
+		finish: string | null;
+		aftermarket_signed: boolean | null;
+		is_altered: boolean | null;
+		language: string | null;
+		card_printing_id: string | null;
+		set_code: string | null;
+		collector_number: string | null;
+		prices: CardPrices | null;
+	}
 
 	let { data } = $props();
 	const wishlist = $derived(data.wishlist);
 	const gameSlug = $derived(wishlist.game_slug || 'mtg');
 	const rawCards = $derived(
-		(wishlist.cards as Array<{ card_name: string; quantity: number }>).map((c) => ({
+		(wishlist.cards as LoadedWishlistItem[]).map((c) => ({
 			name: c.card_name,
 			qty: c.quantity,
-			imageUrl: null as string | null
+			imageUrl: c.image_url,
+			manaCost: null as string | null,
+			condition: c.condition || ('NM' as const),
+			finish: c.finish,
+			aftermarketSigned: c.aftermarket_signed || false,
+			isAltered: c.is_altered || false,
+			language: c.language,
+			cardPrintingId: c.card_printing_id,
+			set: c.set_code || undefined,
+			collectorNumber: c.collector_number || undefined,
+			prices: c.prices || undefined
 		}))
 	);
 
@@ -41,7 +69,11 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					cards: rawCards.map((c) => ({ name: c.name })),
+					cards: rawCards.map((c) => ({
+						name: c.name,
+						cardPrintingId: c.cardPrintingId,
+						finish: c.finish
+					})),
 					gameSlug
 				})
 			});
@@ -49,37 +81,34 @@
 			const result = await response.json();
 
 			if (result.success && result.data?.prices) {
-				const pricesMap = new Map<
-					string,
-					{
-						usd: string | null;
-						usdFoil: string | null;
-						eur: string | null;
-						eurFoil: string | null;
-						tix: string | null;
-						oracleId: string | null;
-						set: string | null;
-						setName: string | null;
-					}
-				>();
-				const imageMap = new Map<string, string | null>();
+				const pricesByPrinting = new SvelteMap<string, CardPrices>();
+				const imageByPrinting = new SvelteMap<string, string | null>();
 
 				for (const p of result.data.prices) {
+					const key = p.cardPrintingId || p.name.toLowerCase();
 					if (p.prices) {
-						pricesMap.set(p.name.toLowerCase(), p.prices);
+						pricesByPrinting.set(key, p.prices);
 					}
 					if (p.imageUrl) {
-						imageMap.set(p.name.toLowerCase(), p.imageUrl);
+						imageByPrinting.set(key, p.imageUrl);
 					}
 				}
 
-				cards = rawCards.map((card) => ({
-					name: card.name,
-					qty: card.qty,
-					imageUrl: imageMap.get(card.name.toLowerCase()) || null,
-					manaCost: null,
-					prices: pricesMap.get(card.name.toLowerCase()) || undefined
-				})) as WishlistCard[];
+				cards = rawCards.map((card) => {
+					const key = card.cardPrintingId || card.name.toLowerCase();
+					return {
+						name: card.name,
+						qty: card.qty,
+						imageUrl: imageByPrinting.get(key) || card.imageUrl,
+						manaCost: card.manaCost,
+						prices: pricesByPrinting.get(key) || card.prices,
+						condition: card.condition,
+						finish: card.finish,
+						aftermarketSigned: card.aftermarketSigned,
+						isAltered: card.isAltered,
+						language: card.language
+					};
+				}) as WishlistCard[];
 			} else {
 				pricesError = result.error?.message || 'Failed to fetch prices';
 			}
@@ -102,7 +131,7 @@
 			);
 			const result = await response.json();
 			if (result.success) {
-				goto('/');
+				goto(resolve('/'));
 			} else {
 				deleteError = result.error?.message ?? 'Failed to delete wishlist';
 			}
@@ -159,7 +188,7 @@
 			</div>
 			<div class="flex items-center gap-4">
 				<a
-					href="/{wishlist.id}/print"
+					href={resolve(`/${wishlist.id}/print`)}
 					class="text-sm text-text-dim transition-colors hover:text-text"
 				>
 					Print Proxies
@@ -174,7 +203,7 @@
 					</button>
 				{/if}
 				<a
-					href="/"
+					href={resolve('/')}
 					class="text-sm text-text-dim transition-colors hover:text-text"
 					data-sveltekit-preload-data
 				>
@@ -200,7 +229,7 @@
 		</div>
 
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-			{#each cards as card (card.name)}
+			{#each cards as card (card.cardPrintingId || card.name)}
 				<PriceTooltip {card}>
 					<div
 						class="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-raised transition-all hover:scale-[1.02] hover:border-border-strong"

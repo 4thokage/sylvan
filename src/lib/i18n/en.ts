@@ -80,15 +80,13 @@ export const en = {
 		findUsers: 'Find users who want cards from your collection',
 		yourProposals: 'Your active trade proposals',
 		createWishlist: 'Create a wishlist to see trade suggestions!',
-		wishlistOf: "'s Wishlist"
+		wishlistOf: "'s Wishlist",
+		propose: 'Propose trade',
+		anonymousOwner: 'Anonymous wishlists cannot receive trade proposals.'
 	},
 	tools: {
 		title: 'Tools',
 		subtitle: 'Utilities for traders',
-		scan: {
-			title: 'Card Scanner',
-			description: 'Scan cards with your camera'
-		},
 		value: {
 			title: 'Collection Value',
 			description: 'Calculate total value of your collection',
@@ -110,14 +108,6 @@ export const en = {
 			balanced: 'Balanced',
 			favorsA: 'Favors Side A',
 			favorsB: 'Favors Side B'
-		},
-		life: {
-			title: 'Life Counter',
-			description: 'Fast life counter for MTG',
-			player1: 'Player 1',
-			player2: 'Player 2',
-			reset: 'Reset',
-			startingLife: 'Starting Life'
 		}
 	},
 	inbox: {

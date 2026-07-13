@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+
 	let locale = $state('en');
 	$effect(() => {
 		if (typeof navigator !== 'undefined') {
@@ -34,7 +36,10 @@
 				? 'Conecte-se à internet para continuar usando o Sylvan.'
 				: 'Connect to the internet to continue using Sylvan.'}
 		</p>
-		<a href="/" class="rounded-lg bg-accent-bg px-6 py-3 text-white hover:bg-accent-hover">
+		<a
+			href={resolve('/')}
+			class="rounded-lg bg-accent-bg px-6 py-3 text-white hover:bg-accent-hover"
+		>
 			{locale === 'pt' ? 'Tentar novamente' : 'Try Again'}
 		</a>
 	</div>

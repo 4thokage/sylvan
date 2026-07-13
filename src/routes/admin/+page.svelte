@@ -1,6 +1,4 @@
 <script lang="ts">
-	let { data } = $props();
-
 	interface AdminData {
 		users: Array<{
 			id: string;
@@ -75,7 +73,7 @@
 			</div>
 			<div class="rounded-lg border border-border bg-surface-raised p-4">
 				<div class="space-y-1">
-					{#each Object.entries(adminData.stats.tradesByStatus) as [status, count]}
+					{#each Object.entries(adminData.stats.tradesByStatus) as [status, count] (status)}
 						<div class="flex justify-between text-sm">
 							<span class="text-text-dim">{status}</span>
 							<span class="font-medium text-text">{count}</span>
@@ -90,7 +88,7 @@
 			<div>
 				<h2 class="mb-4 text-lg font-medium text-text-soft">Recent Users</h2>
 				<div class="space-y-2">
-					{#each adminData.users as u}
+					{#each adminData.users as u (u.id)}
 						<div class="rounded border border-border bg-surface-raised/50 p-3 text-sm">
 							<div class="flex items-center justify-between">
 								<span class="text-text-soft">{u.username || 'Unknown'}</span>
@@ -106,7 +104,7 @@
 			<div>
 				<h2 class="mb-4 text-lg font-medium text-text-soft">Recent Trades</h2>
 				<div class="space-y-2">
-					{#each adminData.trades as t}
+					{#each adminData.trades as t (t.id)}
 						<div class="rounded border border-border bg-surface-raised/50 p-3 text-sm">
 							<div class="flex items-center justify-between">
 								<span class="font-mono text-xs text-text-dim">{t.id.slice(0, 8)}...</span>

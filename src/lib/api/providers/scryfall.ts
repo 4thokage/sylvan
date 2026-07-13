@@ -1,4 +1,4 @@
-import type { TcgProvider, TcgCard, TcgPrinting, TcgSearchResult } from './types';
+import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
 
 const API_BASE = 'https://api.scryfall.com';
 const MAX_BATCH = 75;
@@ -35,9 +35,11 @@ interface ScryfallCard {
 	set_name: string;
 	collector_number: string;
 	rarity: string;
+	lang: string;
 	prices: {
 		usd: string | null;
 		usd_foil: string | null;
+		usd_etched: string | null;
 		eur: string | null;
 		eur_foil: string | null;
 		tix: string | null;
@@ -55,19 +57,143 @@ async function delay(ms: number) {
 	return new Promise((r) => setTimeout(r, ms));
 }
 
+function extractImageUrl(raw: ScryfallCard): string | null {
+	return raw.image_uris?.normal || raw.card_faces?.[0]?.image_uris?.normal || null;
+}
+
+function extractManaCost(raw: ScryfallCard): string | null {
+	return raw.mana_cost || raw.card_faces?.[0]?.mana_cost || null;
+}
+
+function normalizeName(name: string): string {
+	return name
+		.toLowerCase()
+		.trim()
+		.replace(/['"]/g, '')
+		.replace(/[-\s]+/g, ' ');
+}
+
+function buildCardRefs(raw: ScryfallCard): TcgExternalRef[] {
+	const refs: TcgExternalRef[] = [];
+	if (raw.oracle_id) {
+		refs.push({
+			providerSlug: 'scryfall',
+			identifierType: 'oracle_id',
+			externalId: raw.oracle_id
+		});
+	}
+	refs.push({
+		providerSlug: 'scryfall',
+		identifierType: 'scryfall_id',
+		externalId: raw.id
+	});
+	return refs;
+}
+
+function mapToTcgCard(
+	raw: ScryfallCard,
+	finish: string,
+	priceUsd: string | null,
+	priceEur: string | null
+): TcgCard {
+	return {
+		id: `${raw.id}-${finish}`,
+		name: raw.name,
+		normalizedName: normalizeName(raw.name),
+		imageUrl: extractImageUrl(raw),
+		manaCost: extractManaCost(raw),
+		typeLine: raw.type_line || null,
+		setCode: raw.set,
+		setName: raw.set_name,
+		collectorNumber: raw.collector_number,
+		rarity: raw.rarity,
+		language: raw.lang || 'en',
+		finish,
+		factorySigned: false,
+		prices: {
+			usd: priceUsd,
+			eur: priceEur
+		},
+		externalRefs: buildCardRefs(raw),
+		gameSlug: 'mtg'
+	};
+}
+
+function cardToPrinting(
+	raw: ScryfallCard,
+	finish: string,
+	priceUsd: string | null,
+	priceEur: string | null
+): TcgPrinting {
+	return {
+		id: `${raw.id}-${finish}`,
+		setCode: raw.set,
+		setName: raw.set_name,
+		collectorNumber: raw.collector_number,
+		rarity: raw.rarity,
+		imageUrl: extractImageUrl(raw),
+		manaCost: extractManaCost(raw),
+		language: raw.lang || 'en',
+		finish,
+		factorySigned: false,
+		price: priceUsd,
+		priceEur: priceEur,
+		releasedAt: raw.released_at || null,
+		externalRefs: buildCardRefs(raw)
+	};
+}
+
+function* splitFinishes(raw: ScryfallCard): Generator<TcgCard> {
+	const p = raw.prices || {};
+	const hasNonFoil = p.usd !== null && p.usd !== undefined;
+	const hasFoil = p.usd_foil !== null && p.usd_foil !== undefined;
+	const hasEtched = p.usd_etched !== null && p.usd_etched !== undefined;
+
+	if (hasNonFoil) {
+		yield mapToTcgCard(raw, 'non-foil', p.usd, p.eur);
+	}
+	if (hasFoil) {
+		yield mapToTcgCard(raw, 'foil', p.usd_foil, p.eur_foil);
+	}
+	if (hasEtched) {
+		yield mapToTcgCard(raw, 'foil-etched', p.usd_etched, null);
+	}
+	// If a printing has no price data at all, still emit a non-foil placeholder so it can be stored.
+	if (!hasNonFoil && !hasFoil && !hasEtched) {
+		yield mapToTcgCard(raw, 'non-foil', null, null);
+	}
+}
+
+function* splitPrintings(raw: ScryfallCard): Generator<TcgPrinting> {
+	const p = raw.prices || {};
+	const hasNonFoil = p.usd !== null && p.usd !== undefined;
+	const hasFoil = p.usd_foil !== null && p.usd_foil !== undefined;
+	const hasEtched = p.usd_etched !== null && p.usd_etched !== undefined;
+
+	if (hasNonFoil) {
+		yield cardToPrinting(raw, 'non-foil', p.usd, p.eur);
+	}
+	if (hasFoil) {
+		yield cardToPrinting(raw, 'foil', p.usd_foil, p.eur_foil);
+	}
+	if (hasEtched) {
+		yield cardToPrinting(raw, 'foil-etched', p.usd_etched, null);
+	}
+	if (!hasNonFoil && !hasFoil && !hasEtched) {
+		yield cardToPrinting(raw, 'non-foil', null, null);
+	}
+}
+
 export const scryfallProvider: TcgProvider = {
 	gameSlug: 'mtg',
 	gameName: 'Magic: The Gathering',
 
-	normalizeName(name: string): string {
-		return name
-			.toLowerCase()
-			.trim()
-			.replace(/['"]/g, '')
-			.replace(/[-\s]+/g, ' ');
-	},
+	normalizeName,
 
-	async searchCards(query: string, limit = 25): Promise<TcgSearchResult> {
+	async searchCards(
+		query: string,
+		limit = 25
+	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
 		await delay(RATE_LIMIT_MS);
 		const response = await fetch(
 			`${API_BASE}/cards/search?q=${encodeURIComponent(query)}&unique=cards&order=released&dir=desc`,
@@ -83,9 +209,14 @@ export const scryfallProvider: TcgProvider = {
 		}
 
 		const data = await response.json();
-		const cards = (data.data || []).slice(0, limit).map(mapToTcgCard);
+		const allCards: TcgCard[] = [];
+		for (const raw of (data.data || []).slice(0, limit)) {
+			for (const card of splitFinishes(raw)) {
+				allCards.push(card);
+			}
+		}
 
-		return { cards, totalCount: data.total_cards || 0, hasMore: data.has_more || false };
+		return { cards: allCards, totalCount: data.total_cards || 0, hasMore: data.has_more || false };
 	},
 
 	async fuzzySearchCard(name: string): Promise<TcgCard | null> {
@@ -96,7 +227,8 @@ export const scryfallProvider: TcgProvider = {
 		if (response.status === 404) return null;
 		if (!response.ok) throw new Error(`Scryfall fuzzy lookup failed: ${response.status}`);
 		const card = await response.json();
-		return mapToTcgCard(card);
+		const variants = Array.from(splitFinishes(card));
+		return variants[0] || null;
 	},
 
 	async getCard(name: string, set?: string, collectorNumber?: string): Promise<TcgCard | null> {
@@ -112,7 +244,8 @@ export const scryfallProvider: TcgProvider = {
 		if (response.status === 404) return null;
 		if (!response.ok) throw new Error(`Scryfall lookup failed: ${response.status}`);
 		const card = await response.json();
-		return mapToTcgCard(card);
+		const variants = Array.from(splitFinishes(card));
+		return variants[0] || null;
 	},
 
 	async getCardsByIdentifiers(
@@ -142,8 +275,10 @@ export const scryfallProvider: TcgProvider = {
 			}
 
 			const data = await response.json();
-			for (const card of data.data || []) {
-				allCards.push(mapToTcgCard(card));
+			for (const raw of data.data || []) {
+				for (const card of splitFinishes(raw)) {
+					allCards.push(card);
+				}
 			}
 		}
 
@@ -168,22 +303,10 @@ export const scryfallProvider: TcgProvider = {
 			}
 
 			const data = await response.json();
-			for (const card of data.data || []) {
-				const imageUrl =
-					card.image_uris?.normal || card.card_faces?.[0]?.image_uris?.normal || null;
-				const manaCost = card.mana_cost || card.card_faces?.[0]?.mana_cost || null;
-				prints.push({
-					id: card.id,
-					setCode: card.set,
-					setName: card.set_name,
-					collectorNumber: card.collector_number,
-					rarity: card.rarity,
-					imageUrl,
-					manaCost,
-					price: card.prices?.usd || null,
-					priceFoil: card.prices?.usd_foil || null,
-					releasedAt: card.released_at || null
-				});
+			for (const raw of data.data || []) {
+				for (const printing of splitPrintings(raw)) {
+					prints.push(printing);
+				}
 			}
 
 			hasMore = data.has_more || false;
@@ -193,29 +316,3 @@ export const scryfallProvider: TcgProvider = {
 		return prints;
 	}
 };
-
-function mapToTcgCard(raw: ScryfallCard): TcgCard {
-	const imageUrl = raw.image_uris?.normal || raw.card_faces?.[0]?.image_uris?.normal || null;
-	const manaCost = raw.mana_cost || raw.card_faces?.[0]?.mana_cost || null;
-
-	return {
-		id: raw.id,
-		name: raw.name,
-		normalizedName: raw.name.toLowerCase().trim(),
-		imageUrl,
-		manaCost,
-		typeLine: raw.type_line || null,
-		oracleId: raw.oracle_id || null,
-		setCode: raw.set,
-		setName: raw.set_name,
-		collectorNumber: raw.collector_number,
-		rarity: raw.rarity,
-		prices: {
-			usd: raw.prices?.usd || null,
-			usdFoil: raw.prices?.usd_foil || null,
-			eur: raw.prices?.eur || null,
-			eurFoil: raw.prices?.eur_foil || null
-		},
-		gameSlug: 'mtg'
-	};
-}

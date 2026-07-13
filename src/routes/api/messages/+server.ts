@@ -1,8 +1,9 @@
 import type { RequestHandler } from './$types';
+import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import { MessageSchema } from '$lib/schemas/api';
 
 export const GET: RequestHandler = async (event) => {
@@ -10,7 +11,7 @@ export const GET: RequestHandler = async (event) => {
 	const clerkUserId = await requireAuth(event);
 	if (typeof clerkUserId !== 'string') return clerkUserId;
 
-	const { data: user } = await supabase
+	const { data: user } = await getSupabase()
 		.from('users')
 		.select('id')
 		.eq('clerk_user_id', clerkUserId)
@@ -22,7 +23,7 @@ export const GET: RequestHandler = async (event) => {
 
 	const tradeId = url.searchParams.get('tradeId');
 
-	let query = supabase
+	let query = getSupabase()
 		.from('messages')
 		.select('*, sender:sender_id(id, username)')
 		.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
@@ -45,10 +46,10 @@ export const POST: RequestHandler = async (event) => {
 	const rateCheck = apiRateLimiter({
 		request,
 		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
-	} as any);
+	} as unknown as RequestEvent);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
-	const { data: user } = await supabase
+	const { data: user } = await getSupabase()
 		.from('users')
 		.select('id')
 		.eq('clerk_user_id', clerkUserId)
@@ -67,13 +68,27 @@ export const POST: RequestHandler = async (event) => {
 		);
 	}
 
-	const { error } = await supabase.from('messages').insert({
-		sender_id: user.id,
-		recipient_id: parsed.data.recipientId,
-		trade_id: parsed.data.tradeId || null,
-		subject: parsed.data.subject || null,
-		body: parsed.data.body
+	const { data: blocked } = await getSupabase().rpc('is_blocked', {
+		a: user.id,
+		b: parsed.data.recipientId
 	});
+
+	if (blocked) {
+		return json(
+			{ success: false, error: { message: 'Cannot message this user' } },
+			{ status: 403 }
+		);
+	}
+
+	const { error } = await getSupabase()
+		.from('messages')
+		.insert({
+			sender_id: user.id,
+			recipient_id: parsed.data.recipientId,
+			trade_id: parsed.data.tradeId || null,
+			subject: parsed.data.subject || null,
+			body: parsed.data.body
+		});
 
 	if (error) {
 		return json({ success: false, error: { message: error.message } }, { status: 500 });

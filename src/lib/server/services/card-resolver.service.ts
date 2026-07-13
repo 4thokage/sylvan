@@ -14,7 +14,7 @@ export interface ResolveCardsInput {
 	qty: number;
 	set?: string;
 	collectorNumber?: string;
-	oracleId?: string | null;
+	finish?: string;
 	cardPrintingId?: string | null;
 }
 
@@ -26,13 +26,35 @@ export function resolvePrinting(
 	cardResult: CardLookupResult,
 	input: ResolveCardsInput
 ): string | null {
-	if (input.cardPrintingId) return input.cardPrintingId;
-	if (input.set && input.collectorNumber) {
-		const match = cardResult.printings.find(
-			(p) => p.setCode === input.set && p.collectorNumber === input.collectorNumber
-		);
+	// Only honor a client-supplied printing id if it is a real UUID that already
+	// belongs to one of the resolved card's printings. The client may send a
+	// provider composite key (e.g. `<scryfallId>-foil`) or a stale printing id,
+	// neither of which should be trusted as a foreign key. Resolving by physical
+	// attributes instead also prevents a caller from attaching an arbitrary
+	// printing to their collection/wishlist.
+	if (input.cardPrintingId) {
+		const match = cardResult.printings.find((p) => p.id === input.cardPrintingId);
 		if (match) return match.id;
 	}
+
+	let candidates = cardResult.printings;
+
+	if (input.set && input.collectorNumber) {
+		const exact = candidates.filter(
+			(p) => p.setCode === input.set && p.collectorNumber === input.collectorNumber
+		);
+		if (exact.length > 0) candidates = exact;
+	} else if (input.set) {
+		const setMatches = candidates.filter((p) => p.setCode === input.set);
+		if (setMatches.length > 0) candidates = setMatches;
+	}
+
+	if (input.finish) {
+		const finishMatch = candidates.find((p) => p.finish === input.finish);
+		if (finishMatch) return finishMatch.id;
+	}
+
+	if (candidates.length > 0) return candidates[0].id;
 	if (cardResult.printings.length > 0) return cardResult.printings[0].id;
 	return null;
 }
@@ -45,13 +67,7 @@ export async function resolveCards(
 	const errors: string[] = [];
 
 	for (const card of cards) {
-		const cardResult = await findOrCreateCard(
-			gameSlug,
-			card.name,
-			card.set,
-			card.collectorNumber,
-			card.oracleId
-		);
+		const cardResult = await findOrCreateCard(gameSlug, card.name, card.set, card.collectorNumber);
 		if (!cardResult) {
 			errors.push(`Card not found: ${card.name}`);
 			continue;

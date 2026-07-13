@@ -1,0 +1,7 @@
+# Have Stacks, Derived Availability, and Offer Item Quantities
+
+A `user_cards` row represents a homogeneous stack of N physically identical cards, not a single physical card. This keeps bulk import (the common case) cheap and lets trade offers reference a slice of a stack instead of forcing one-row-per-card.
+
+Trade offer items carry a `quantity` saying how many cards from the referenced Have Stack are offered. Available quantity on a stack is **derived** — `quantity` minus the sum of quantities on items belonging to the trade's current offer — rather than maintained as a separate `reserved_quantity` column. Only `accepted` mutates the stack (`quantity -= offered_qty`); every other terminal state (rejected, cancelled) and every supersession (a new offer displacing the current one) releases reservations automatically, because the old offer's items simply stop counting. A `reserved_quantity` column was rejected because the alternating-offers lifecycle produces many supersessions and terminal paths, each of which would need a matching column mutation — too many places to leak phantom reservations.
+
+This decision is recorded because the choice of stack-with-quantity over one-row-per-card is hard to reverse (touches import, export, matching, and every offer path), and because derived availability is surprising without context — a reader seeing no `reserved_quantity` column might assume reservations aren't modeled at all.

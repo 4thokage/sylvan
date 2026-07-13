@@ -36,7 +36,7 @@
 		const vw = window.innerWidth;
 		const vh = window.innerHeight;
 		const W = 256;
-		const H = 220;
+		const H = 160;
 		const M = 8;
 
 		const spaceBelow = vh - rect.bottom;
@@ -112,14 +112,8 @@
 				<div class="grid grid-cols-2 gap-2 text-xs">
 					<div class="text-text-dim">USD</div>
 					<div class="text-right text-text">{formatPrice(card.prices.usd)}</div>
-					<div class="text-text-dim">USD Foil</div>
-					<div class="text-right text-accent">{formatPrice(card.prices.usdFoil)}</div>
 					<div class="text-text-dim">EUR</div>
 					<div class="text-right text-text">{formatPrice(card.prices.eur)}</div>
-					<div class="text-text-dim">EUR Foil</div>
-					<div class="text-right text-accent">{formatPrice(card.prices.eurFoil)}</div>
-					<div class="text-text-dim">TIX</div>
-					<div class="text-right text-text">{formatPrice(card.prices.tix)}</div>
 				</div>
 			{:else}
 				<p class="text-xs text-text-muted">No price data available</p>
@@ -167,21 +161,9 @@
 						<span class="text-text-dim">USD</span>
 						<span class="text-text">{formatPrice(card.prices.usd)}</span>
 					</div>
-					<div class="flex justify-between border-b border-border pb-2">
-						<span class="text-text-dim">USD Foil</span>
-						<span class="text-accent">{formatPrice(card.prices.usdFoil)}</span>
-					</div>
-					<div class="flex justify-between border-b border-border pb-2">
+					<div class="flex justify-between">
 						<span class="text-text-dim">EUR</span>
 						<span class="text-text">{formatPrice(card.prices.eur)}</span>
-					</div>
-					<div class="flex justify-between border-b border-border pb-2">
-						<span class="text-text-dim">EUR Foil</span>
-						<span class="text-accent">{formatPrice(card.prices.eurFoil)}</span>
-					</div>
-					<div class="flex justify-between">
-						<span class="text-text-dim">TIX</span>
-						<span class="text-text">{formatPrice(card.prices.tix)}</span>
 					</div>
 				</div>
 			{:else}

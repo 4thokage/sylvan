@@ -1,5 +1,9 @@
-import { supabase } from '$lib/server/supabase';
-import type { CollectionRepository, UserCardRow } from '$lib/server/repositories/types';
+import { getSupabase } from '$lib/server/supabase';
+import type {
+	CollectionRepository,
+	UserCardRow,
+	CardCondition
+} from '$lib/server/repositories/types';
 import { collectionRepository as defaultRepo } from '$lib/server/repositories/collection.repository';
 
 export interface CollectionCard {
@@ -8,27 +12,28 @@ export interface CollectionCard {
 	cardName: string;
 	imageUrl: string | null;
 	quantity: number;
-	condition: string;
-	isFoil: boolean;
-	isSigned: boolean;
+	condition: CardCondition;
+	aftermarketSigned: boolean;
 	isAltered: boolean;
-	language: string;
 	isTradeable: boolean;
+	location: string | null;
+	notes: string | null;
 	marketPriceUsd: number | null;
 	marketPriceEur: number | null;
 	setCode: string | null;
 	collectorNumber: string | null;
-	oracleId: string | null;
+	finish: string | null;
+	language: string | null;
 }
 
 async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 	if (cards.length === 0) return [];
 
 	const printingIds = cards.map((c) => c.card_printing_id);
-	const { data: printings } = await supabase
+	const { data: printings } = await getSupabase()
 		.from('card_printings')
 		.select(
-			'id, image_url, set_code, collector_number, market_price_usd, market_price_eur, cards(name, oracle_id)'
+			'id, image_url, set_code, collector_number, finish, language, market_price_usd, market_price_eur, cards(name)'
 		)
 		.in('id', printingIds);
 
@@ -37,9 +42,10 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		{
 			imageUrl: string | null;
 			cardName: string;
-			oracleId: string | null;
 			setCode: string | null;
 			collectorNumber: string | null;
+			finish: string | null;
+			language: string | null;
 			marketPriceUsd: number | null;
 			marketPriceEur: number | null;
 		}
@@ -49,16 +55,19 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		image_url: string | null;
 		set_code: string | null;
 		collector_number: string | null;
+		finish: string;
+		language: string;
 		market_price_usd: number | null;
 		market_price_eur: number | null;
-		cards: { name: string; oracle_id: string | null } | null;
+		cards: { name: string } | null;
 	}>) {
 		printingMap.set(p.id, {
 			imageUrl: p.image_url || null,
 			cardName: p.cards?.name || 'Unknown',
-			oracleId: p.cards?.oracle_id || null,
 			setCode: p.set_code || null,
 			collectorNumber: p.collector_number || null,
+			finish: p.finish,
+			language: p.language,
 			marketPriceUsd: p.market_price_usd,
 			marketPriceEur: p.market_price_eur
 		});
@@ -68,9 +77,10 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		const info = printingMap.get(c.card_printing_id) || {
 			imageUrl: null,
 			cardName: 'Unknown',
-			oracleId: null,
 			setCode: null,
 			collectorNumber: null,
+			finish: null,
+			language: null,
 			marketPriceUsd: null,
 			marketPriceEur: null
 		};
@@ -81,16 +91,17 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 			imageUrl: info.imageUrl,
 			quantity: c.quantity,
 			condition: c.condition,
-			isFoil: c.is_foil,
-			isSigned: c.is_signed,
+			aftermarketSigned: c.aftermarket_signed,
 			isAltered: c.is_altered,
-			language: c.language,
 			isTradeable: c.is_tradeable,
+			location: c.location,
+			notes: c.notes,
 			marketPriceUsd: info.marketPriceUsd,
 			marketPriceEur: info.marketPriceEur,
 			setCode: info.setCode,
 			collectorNumber: info.collectorNumber,
-			oracleId: info.oracleId
+			finish: info.finish,
+			language: info.language
 		};
 	});
 }
@@ -119,7 +130,16 @@ export async function getPublicCollection(
 
 export async function saveCollection(
 	clerkUserId: string,
-	cards: Array<{ card_printing_id: string; quantity: number }>,
+	cards: Array<{
+		card_printing_id: string;
+		quantity: number;
+		condition: CardCondition;
+		aftermarket_signed: boolean;
+		is_altered: boolean;
+		is_tradeable: boolean;
+		location: string | null;
+		notes: string | null;
+	}>,
 	gameSlug = 'mtg',
 	repo?: CollectionRepository
 ) {
@@ -134,12 +154,12 @@ export async function replaceCollection(
 	cards: Array<{
 		card_printing_id: string;
 		quantity: number;
-		condition?: string;
-		is_foil?: boolean;
-		is_signed?: boolean;
-		is_altered?: boolean;
-		language?: string;
-		is_tradeable?: boolean;
+		condition: CardCondition;
+		aftermarket_signed: boolean;
+		is_altered: boolean;
+		is_tradeable: boolean;
+		location: string | null;
+		notes: string | null;
 	}>,
 	gameSlug = 'mtg',
 	repo?: CollectionRepository

@@ -61,9 +61,9 @@
 		</div>
 	{/if}
 
-	<div>
-		<label class="mb-1 block text-sm font-medium text-text-dim"
-			>{t($localeStore, 'profile.bio')}</label
+	<label class="block">
+		<span class="mb-1 block text-sm font-medium text-text-dim"
+			>{t($localeStore, 'profile.bio')}</span
 		>
 		<textarea
 			bind:value={bio}
@@ -73,11 +73,11 @@
 			class="w-full resize-none rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 		></textarea>
 		<p class="mt-1 text-xs text-text-muted">{bio.length}/1000</p>
-	</div>
+	</label>
 
-	<div>
-		<label class="mb-1 block text-sm font-medium text-text-dim"
-			>{t($localeStore, 'profile.location')}</label
+	<label class="block">
+		<span class="mb-1 block text-sm font-medium text-text-dim"
+			>{t($localeStore, 'profile.location')}</span
 		>
 		<input
 			type="text"
@@ -85,11 +85,11 @@
 			placeholder={t($localeStore, 'profile.locationPlaceholder')}
 			class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 		/>
-	</div>
+	</label>
 
-	<div>
-		<label class="mb-1 block text-sm font-medium text-text-dim"
-			>{t($localeStore, 'profile.country')}</label
+	<label class="block">
+		<span class="mb-1 block text-sm font-medium text-text-dim"
+			>{t($localeStore, 'profile.country')}</span
 		>
 		<input
 			type="text"
@@ -97,7 +97,7 @@
 			placeholder="USA, Germany, Japan..."
 			class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 		/>
-	</div>
+	</label>
 
 	<div class="flex justify-end">
 		<button

@@ -1,19 +1,27 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { supabase } from '$lib/server/supabase';
-import { env } from '$env/dynamic/private';
+import { getSupabase } from '$lib/server/supabase';
+import { requireAuth } from '$lib/server/middleware/auth';
 
-export const GET: RequestHandler = async () => {
-	const hasServiceKey = !!env.SUPABASE_SERVICE_ROLE_KEY;
-	const hasAnonKey = !!env.SUPABASE_ANON_KEY;
-	const hasUrl = !!env.SUPABASE_URL;
+export const GET: RequestHandler = async (event) => {
+	const clerkUserId = await requireAuth(event);
+	if (typeof clerkUserId !== 'string') return clerkUserId;
+
+	const { data: user } = await getSupabase()
+		.from('users')
+		.select('is_admin')
+		.eq('clerk_user_id', clerkUserId)
+		.single();
+
+	if (!user?.is_admin) {
+		return json({ success: false, error: { message: 'Forbidden' } }, { status: 403 });
+	}
 
 	let dbStatus = 'unknown';
-	let games = [];
-	let users = [];
+	let games: Array<{ slug: string; name: string }> = [];
 
 	try {
-		const { data: gamesData, error: gamesError } = await supabase
+		const { data: gamesData, error: gamesError } = await getSupabase()
 			.from('games')
 			.select('slug, name');
 		if (gamesError) {
@@ -25,38 +33,13 @@ export const GET: RequestHandler = async () => {
 		dbStatus = `games exception: ${err instanceof Error ? err.message : String(err)}`;
 	}
 
-	try {
-		const { data: usersData, error: usersError } = await supabase
-			.from('users')
-			.select('id, username')
-			.limit(1);
-		if (usersError) {
-			dbStatus = dbStatus === 'unknown' ? `users error: ${usersError.message}` : dbStatus;
-		} else {
-			users = usersData || [];
-		}
-	} catch (err) {
-		dbStatus =
-			dbStatus === 'unknown'
-				? `users exception: ${err instanceof Error ? err.message : String(err)}`
-				: dbStatus;
-	}
-
 	return json({
 		env: {
-			hasServiceKey,
-			hasAnonKey,
-			hasUrl,
-			keyPrefix: env.SUPABASE_SERVICE_ROLE_KEY
-				? env.SUPABASE_SERVICE_ROLE_KEY.slice(0, 20) + '...'
-				: env.SUPABASE_ANON_KEY
-					? env.SUPABASE_ANON_KEY.slice(0, 20) + '...'
-					: 'none'
+			hasUrl: !!process.env.SUPABASE_URL
 		},
 		db: {
 			status: dbStatus,
-			games,
-			users
+			games
 		}
 	});
 };

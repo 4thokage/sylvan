@@ -140,6 +140,52 @@ export function parseCsv(text: string): ParsedCard[] {
 	return Array.from(cards.values());
 }
 
+export function parseTcgplayerCsv(text: string): ParsedCard[] {
+	const parsed = Papa.parse<Record<string, string>>(text.trim(), {
+		header: true,
+		skipEmptyLines: true,
+		comments: '#'
+	});
+
+	const rows = parsed.data || [];
+	const headers = parsed.meta.fields || [];
+	if (rows.length === 0 || headers.length === 0) return [];
+
+	const nameIdx = detectHeaderIndex(headers, 'name', 'cardname', 'card', 'productname', 'product');
+	const qtyIdx = detectHeaderIndex(headers, 'quantity', 'qty', 'count', 'amount');
+	const setIdx = detectHeaderIndex(headers, 'set', 'setcode', 'edition', 'setname');
+	const cnIdx = detectHeaderIndex(headers, 'collectornumber', 'cn', 'number', 'num', 'collector');
+	const condIdx = detectHeaderIndex(headers, 'condition', 'cond', 'state');
+	const foilIdx = detectHeaderIndex(headers, 'foil', 'isfoil', 'finish', 'foil?');
+
+	if (nameIdx < 0 || qtyIdx < 0) return [];
+
+	const cards = new Map<string, ParsedCard>();
+
+	for (const row of rows) {
+		const name = (row[headers[nameIdx]] || '').trim();
+		const qtyRaw = (row[headers[qtyIdx]] || '').trim();
+		const qty = qtyRaw ? parseInt(qtyRaw, 10) : 1;
+
+		if (!name || isNaN(qty) || qty <= 0) continue;
+
+		const set = setIdx >= 0 ? (row[headers[setIdx]] || '').trim() || undefined : undefined;
+		const collector_number = cnIdx >= 0 ? (row[headers[cnIdx]] || '').trim() || undefined : undefined;
+		const condition = condIdx >= 0 ? (row[headers[condIdx]] || '').trim() || undefined : undefined;
+		const foil = foilIdx >= 0 ? FOIL_TRUE.has((row[headers[foilIdx]] || '').toLowerCase().trim()) : false;
+
+		const key = name.toLowerCase();
+		const existing = cards.get(key);
+		if (existing) {
+			existing.qty += qty;
+		} else {
+			cards.set(key, { name, qty, set, collector_number, condition, foil });
+		}
+	}
+
+	return Array.from(cards.values());
+}
+
 export function parseDeckbox(text: string): ParsedCard[] {
 	const lines = text.split('\n').filter((l) => l.trim());
 	const cards = new Map<string, ParsedCard>();

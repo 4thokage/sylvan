@@ -1,7 +1,15 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import TCGdex, { Query } from '@tcgdex/sdk';
-import type { TcgProvider, TcgCard, TcgPrinting, TcgSearchResult } from './types';
+import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
 
 const tcgdex = new TCGdex('en');
+
+interface PokemonVariants {
+	normal?: boolean;
+	holo?: boolean;
+	reverseHolo?: boolean;
+	firstEdition?: boolean;
+}
 
 interface RawCard {
 	id: string;
@@ -11,6 +19,7 @@ interface RawCard {
 	set?: { id: string; name: string };
 	rarity?: string;
 	category?: string;
+	variants?: PokemonVariants;
 }
 
 function normalize(rawName: string): string {
@@ -21,47 +30,117 @@ function normalize(rawName: string): string {
 		.replace(/[-\s]+/g, ' ');
 }
 
-function mapCard(raw: any): TcgCard {
+function buildRefs(raw: RawCard): TcgExternalRef[] {
+	return [
+		{
+			providerSlug: 'tcgdex',
+			identifierType: 'tcgdex_id',
+			externalId: raw.id
+		}
+	];
+}
+
+function imageUrl(raw: any): string | null {
+	if (typeof raw.getImageURL === 'function') {
+		return raw.getImageURL('high', 'png');
+	}
+	if (raw.image) {
+		return `https://images.tcgdex.net/${tcgdex.getLang()}/high/${raw.id}.png`;
+	}
+	return null;
+}
+
+function mapToTcgCard(raw: any, finish: string, idSuffix = ''): TcgCard {
 	const name = raw.name || '';
 	return {
-		id: raw.id || '',
+		id: `${raw.id}-${finish}${idSuffix ? `-${idSuffix}` : ''}`,
 		name,
 		normalizedName: normalize(name),
-		imageUrl:
-			typeof raw.getImageURL === 'function'
-				? raw.getImageURL('high', 'png')
-				: raw.image
-					? `https://images.tcgdex.net/${tcgdex.getLang()}/high/${raw.id}.png`
-					: null,
+		imageUrl: imageUrl(raw),
 		manaCost: null,
 		typeLine: raw.category || null,
-		oracleId: null,
 		setCode: raw.set?.id || (raw.id?.split('-')[0] ?? ''),
 		setName: raw.set?.name || '',
 		collectorNumber: raw.localId || raw.id?.split('-')[1] || '',
 		rarity: raw.rarity || '',
-		prices: { usd: null, usdFoil: null, eur: null, eurFoil: null },
+		language: tcgdex.getLang(),
+		finish,
+		factorySigned: false,
+		prices: { usd: null, eur: null },
+		externalRefs: buildRefs(raw),
 		gameSlug: 'pokemon'
 	};
 }
 
-async function getFullCard(raw: any): Promise<TcgCard> {
-	if (typeof raw.getCard === 'function') {
-		const full = await raw.getCard();
-		return mapCard(full);
+function cardToPrinting(raw: any, finish: string, idSuffix = ''): TcgPrinting {
+	const full = mapToTcgCard(raw, finish, idSuffix);
+	return {
+		id: full.id,
+		setCode: full.setCode,
+		setName: full.setName,
+		collectorNumber: full.collectorNumber,
+		rarity: full.rarity,
+		imageUrl: full.imageUrl,
+		manaCost: null,
+		language: full.language,
+		finish,
+		factorySigned: false,
+		price: null,
+		priceEur: null,
+		releasedAt: null,
+		externalRefs: full.externalRefs
+	};
+}
+
+function* splitFinishes(raw: any): Generator<TcgCard> {
+	const variants: PokemonVariants = raw.variants || {};
+	const hasVariant =
+		variants.normal || variants.holo || variants.reverseHolo || variants.firstEdition;
+
+	if (!hasVariant) {
+		yield mapToTcgCard(raw, 'non-foil');
+		return;
 	}
-	return mapCard(raw);
+
+	if (variants.normal) yield mapToTcgCard(raw, 'non-foil');
+	if (variants.holo) yield mapToTcgCard(raw, 'holo');
+	if (variants.reverseHolo) yield mapToTcgCard(raw, 'reverse-holo');
+	if (variants.firstEdition) yield mapToTcgCard(raw, 'non-foil', 'first-edition');
+}
+
+function* splitPrintings(raw: any): Generator<TcgPrinting> {
+	const variants: PokemonVariants = raw.variants || {};
+	const hasVariant =
+		variants.normal || variants.holo || variants.reverseHolo || variants.firstEdition;
+
+	if (!hasVariant) {
+		yield cardToPrinting(raw, 'non-foil');
+		return;
+	}
+
+	if (variants.normal) yield cardToPrinting(raw, 'non-foil');
+	if (variants.holo) yield cardToPrinting(raw, 'holo');
+	if (variants.reverseHolo) yield cardToPrinting(raw, 'reverse-holo');
+	if (variants.firstEdition) yield cardToPrinting(raw, 'non-foil', 'first-edition');
+}
+
+async function getFullCard(raw: any): Promise<any> {
+	if (typeof raw.getCard === 'function') {
+		return raw.getCard();
+	}
+	return raw;
 }
 
 export const pokemonProvider: TcgProvider = {
 	gameSlug: 'pokemon',
 	gameName: 'Pokémon TCG',
 
-	normalizeName(name: string): string {
-		return normalize(name);
-	},
+	normalizeName: normalize,
 
-	async searchCards(query: string, limit = 25): Promise<TcgSearchResult> {
+	async searchCards(
+		query: string,
+		limit = 25
+	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
 		const q = Query.create()
 			.contains('name', query)
 			.sort('set.releaseDate', 'DESC')
@@ -69,8 +148,10 @@ export const pokemonProvider: TcgProvider = {
 		const results = await tcgdex.card.list(q);
 		const cards: TcgCard[] = [];
 		for (const r of results.slice(0, limit)) {
-			const card = await getFullCard(r);
-			cards.push(card);
+			const full = await getFullCard(r);
+			for (const card of splitFinishes(full)) {
+				cards.push(card);
+			}
 		}
 		return { cards, totalCount: results.length, hasMore: false };
 	},
@@ -83,7 +164,11 @@ export const pokemonProvider: TcgProvider = {
 		if (set && collectorNumber) {
 			const id = `${set.toLowerCase()}-${collectorNumber}`;
 			const card = await tcgdex.card.get(id);
-			if (card) return mapCard(card);
+			if (card) {
+				const full = await getFullCard(card);
+				const variants = Array.from(splitFinishes(full));
+				return variants[0] || null;
+			}
 		}
 		let q = Query.create().equal('name', name).paginate(1, 1);
 		let results = await tcgdex.card.list(q);
@@ -92,7 +177,9 @@ export const pokemonProvider: TcgProvider = {
 			results = await tcgdex.card.list(q);
 		}
 		if (results.length === 0) return null;
-		return getFullCard(results[0]);
+		const full = await getFullCard(results[0]);
+		const variants = Array.from(splitFinishes(full));
+		return variants[0] || null;
 	},
 
 	async getCardsByIdentifiers(
@@ -116,19 +203,9 @@ export const pokemonProvider: TcgProvider = {
 		const printings: TcgPrinting[] = [];
 		for (const r of results) {
 			const full = await getFullCard(r);
-			const setId = full.setCode;
-			printings.push({
-				id: full.id,
-				setCode: setId,
-				setName: full.setName,
-				collectorNumber: full.collectorNumber,
-				rarity: full.rarity,
-				imageUrl: full.imageUrl,
-				manaCost: null,
-				price: null,
-				priceFoil: null,
-				releasedAt: null
-			});
+			for (const printing of splitPrintings(full)) {
+				printings.push(printing);
+			}
 		}
 		return printings;
 	}

@@ -1,52 +1,35 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { requireAuth } from '$lib/server/middleware/auth';
-import { supabase } from '$lib/server/supabase';
+import { requireUser } from '$lib/server/middleware/auth';
+import { getSupabase } from '$lib/server/supabase';
 
 export const GET: RequestHandler = async (event) => {
-	const clerkUserId = await requireAuth(event);
-	if (typeof clerkUserId !== 'string') return clerkUserId;
+	const authUser = await requireUser(event);
+	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { data: user } = await supabase
-		.from('users')
-		.select('id')
-		.eq('clerk_user_id', clerkUserId)
-		.single();
-
-	if (!user) {
-		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
-	}
-
-	const { data: notifications } = await supabase
+	const { data: notifications } = await getSupabase()
 		.from('notifications')
 		.select('*')
-		.eq('user_id', user.id)
+		.eq('user_id', authUser.dbUserId)
 		.order('created_at', { ascending: false })
 		.limit(50);
 
 	const unreadCount = (notifications || []).filter((n) => !n.read_at).length;
 
-	return json({ success: true, data: { notifications: notifications || [], unreadCount } });
+	return json({
+		success: true,
+		data: { userId: authUser.dbUserId, notifications: notifications || [], unreadCount }
+	});
 };
 
 export const PATCH: RequestHandler = async (event) => {
-	const clerkUserId = await requireAuth(event);
-	if (typeof clerkUserId !== 'string') return clerkUserId;
+	const authUser = await requireUser(event);
+	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { data: user } = await supabase
-		.from('users')
-		.select('id')
-		.eq('clerk_user_id', clerkUserId)
-		.single();
-
-	if (!user) {
-		return json({ success: false, error: { message: 'User not found' } }, { status: 404 });
-	}
-
-	const { error } = await supabase
+	const { error } = await getSupabase()
 		.from('notifications')
 		.update({ read_at: new Date().toISOString() })
-		.eq('user_id', user.id)
+		.eq('user_id', authUser.dbUserId)
 		.is('read_at', null);
 
 	if (error) {

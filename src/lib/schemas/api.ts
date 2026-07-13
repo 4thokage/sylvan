@@ -7,15 +7,15 @@ export const CardEntrySchema = z.object({
 	collector_number: z.string().max(32).optional(),
 	imageUrl: z.string().url().max(2048).nullable().optional(),
 	manaCost: z.string().max(64).nullable().optional(),
-	oracleId: z.string().max(64).nullable().optional(),
-	selectedPrintIndex: z.number().int().min(0).nullable().optional(),
-	cardPrintingId: z.string().uuid().nullable().optional(),
-	condition: z.string().max(16).optional(),
-	isFoil: z.boolean().optional(),
-	isSigned: z.boolean().optional(),
+	cardPrintingId: z.string().nullable().optional(),
+	condition: z.enum(['NM', 'LP', 'MP', 'HP', 'DMG']).optional(),
+	finish: z.string().max(32).nullable().optional(),
+	aftermarketSigned: z.boolean().optional(),
 	isAltered: z.boolean().optional(),
-	language: z.string().max(8).optional(),
-	isTradeable: z.boolean().optional()
+	language: z.string().max(8).nullable().optional(),
+	isTradeable: z.boolean().optional(),
+	location: z.string().max(128).nullable().optional(),
+	notes: z.string().max(1024).nullable().optional()
 });
 
 export const SaveWishlistSchema = z.object({
@@ -37,7 +37,8 @@ export const PriceRequestSchema = z.object({
 				name: z.string().min(1).max(256),
 				set: z.string().max(32).optional(),
 				collector_number: z.string().max(32).optional(),
-				selectedPrintIndex: z.number().int().min(0).optional()
+				cardPrintingId: z.string().optional(),
+				finish: z.string().max(32).optional()
 			})
 		)
 		.min(1)
@@ -50,10 +51,15 @@ export const DeleteWishlistSchema = z.object({
 	fingerprint: z.string().max(256)
 });
 
+export const TradeItemSchema = z.object({
+	userCardId: z.string().uuid(),
+	quantity: z.number().int().min(1).max(99999)
+});
+
 export const TradeProposalSchema = z.object({
 	recipientId: z.string().uuid(),
-	offeredCardIds: z.array(z.string().uuid()).min(1).max(200),
-	requestedCardIds: z.array(z.string().uuid()).min(1).max(200),
+	offeredItems: z.array(TradeItemSchema).min(1).max(200),
+	requestedItems: z.array(TradeItemSchema).max(200).default([]),
 	note: z.string().max(2000).optional()
 });
 

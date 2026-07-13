@@ -1,5 +1,5 @@
 import { buildClerkProps } from 'svelte-clerk/server';
-import { supabase } from '$lib/server/supabase';
+import { getSupabase } from '$lib/server/supabase';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -9,34 +9,19 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	let user = null;
 
 	if (clerkUserId) {
-		const { data: existing, error: selectError } = await supabase
-			.from('users')
-			.select('id, username, is_admin')
-			.eq('clerk_user_id', clerkUserId)
-			.single();
+		const { data: userId, error: rpcError } = await getSupabase().rpc('ensure_user', {
+			p_clerk_user_id: clerkUserId
+		});
 
-		if (selectError && selectError.code !== 'PGRST116') {
-			console.error('[Layout] Error fetching user:', selectError.message);
-		}
-
-		if (existing) {
-			user = existing;
-		} else {
-			const suggestedName = `user-${clerkUserId.slice(0, 8)}`;
-			const { data: created, error: insertError } = await supabase
+		if (rpcError) {
+			console.error('[Layout] Error ensuring user:', rpcError.message);
+		} else if (userId) {
+			const { data: profile } = await getSupabase()
 				.from('users')
-				.insert({
-					clerk_user_id: clerkUserId,
-					username: suggestedName
-				})
 				.select('id, username, is_admin')
+				.eq('id', userId)
 				.single();
-
-			if (insertError) {
-				console.error('[Layout] Error creating user:', insertError.message);
-			} else if (created) {
-				user = created;
-			}
+			user = profile || null;
 		}
 	}
 

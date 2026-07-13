@@ -31,15 +31,24 @@ export const GET: RequestHandler = async (event) => {
 			getCollection(clerkUserId)
 		]);
 
+		const userId = await tradeRepository.getUserIdByClerkId(clerkUserId);
+
 		const matches = await findMatchesForCollection(
+			userId,
 			collection.map((c) => ({
+				id: c.id,
 				cardPrintingId: c.cardPrintingId,
-				qty: c.quantity,
-				isTradeable: c.isTradeable
+				cardName: c.cardName,
+				quantity: c.quantity,
+				condition: c.condition,
+				finish: c.finish,
+				aftermarketSigned: c.aftermarketSigned,
+				isAltered: c.isAltered,
+				language: c.language,
+				isTradeable: c.isTradeable,
+				marketPriceEur: c.marketPriceEur
 			}))
 		);
-
-		const userId = await tradeRepository.getUserIdByClerkId(clerkUserId);
 
 		return json({
 			success: true,
@@ -74,8 +83,8 @@ export const POST: RequestHandler = async (event) => {
 		const trade = await createTradeProposal(
 			clerkUserId,
 			parsed.data.recipientId,
-			parsed.data.offeredCardIds,
-			parsed.data.requestedCardIds,
+			parsed.data.offeredItems,
+			parsed.data.requestedItems,
 			parsed.data.note
 		);
 

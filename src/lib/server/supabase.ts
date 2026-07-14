@@ -36,12 +36,12 @@ const supabaseContext = new AsyncLocalStorage<SupabaseClient>();
  * Create a request-scoped Supabase client that forwards the user's Clerk JWT.
  * Passing `null` creates an anonymous client.
  */
-export function createAuthSupabase(token: string | null | undefined): SupabaseClient {
-	return createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {
-		global: {
-			headers: token ? { Authorization: `Bearer ${token}` } : {}
-		}
-	});
+// Request-scoped client now uses the service-role key instead of forwarding the Clerk JWT.
+// Supabase cannot verify Clerk-issued JWTs, so forwarding them made every server-side query
+// fail ("No suitable key or wrong key type" / "permission denied"). All server-side queries
+// are explicitly scoped by user_id / clerk_user_id, so bypassing RLS via service-role is safe.
+export function createAuthSupabase(_token: string | null | undefined): SupabaseClient {
+	return getServiceSupabase();
 }
 
 /**

@@ -1238,64 +1238,33 @@ begin
     'current_offer_id', v_trade.current_offer_id,
     'offer_note', coalesce(v_offer.note, v_trade.proposer_note),
     'offer_created_at', v_offer.created_at,
-    'items', v_items
+     'items', v_items
   );
 end;
 $$;
 
-create or replace function public.get_counterparty_stacks(p_trade_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_user_id uuid := public.current_user_id();
-  v_trade record;
-  v_other_id uuid;
-  v_stacks jsonb;
-begin
-  select * into v_trade from public.trades where id = p_trade_id;
-
-  if v_trade is null then
-    raise exception 'Trade not found';
-  end if;
-
-  if v_trade.proposer_id <> v_user_id and v_trade.recipient_id <> v_user_id then
-    raise exception 'Not a participant';
-  end if;
-
-  v_other_id := case when v_trade.proposer_id = v_user_id then v_trade.recipient_id else v_trade.proposer_id end;
-
-  select coalesce(jsonb_agg(
-    jsonb_build_object(
-      'user_card_id', uc.id,
-      'quantity', uc.quantity,
-      'available_quantity', public.available_quantity(uc.id, null),
-      'condition', uc.condition,
-      'aftermarket_signed', uc.aftermarket_signed,
-      'is_altered', uc.is_altered,
-      'is_tradeable', uc.is_tradeable,
-      'card_name', c.name,
-      'set_code', cp.set_code,
-      'collector_number', cp.collector_number,
-      'finish', cp.finish,
-      'language', cp.language,
-      'image_url', coalesce(cp.image_url, c.image_url)
-    )
-  ), '[]'::jsonb)
-  into v_stacks
-  from public.user_cards uc
-  join public.card_printings cp on cp.id = uc.card_printing_id
-  join public.cards c on c.id = cp.card_id
-  where uc.user_id = v_other_id
-    and uc.is_tradeable = true;
-
-  return v_stacks;
-end;
-$$;
-
 grant execute on function public.get_trade_details(uuid) to authenticated, anon;
+
+-- =====================================================================
+-- Role grants: ensure Supabase roles can access the schema objects.
+-- (Without these, only the postgres superuser can read/write, causing
+--  "permission denied for table ..." for service_role/authenticated/anon.)
+-- =====================================================================
+grant usage on schema public to service_role, authenticated, anon;
+
+grant all on all tables in schema public to service_role, authenticated;
+grant select on all tables in schema public to anon;
+
+grant all on all sequences in schema public to service_role, authenticated;
+grant usage on all sequences in schema public to anon;
+
+grant execute on all functions in schema public to service_role, authenticated, anon;
+
+alter default privileges in schema public grant all on tables to service_role, authenticated;
+alter default privileges in schema public grant select on tables to anon;
+alter default privileges in schema public grant all on sequences to service_role, authenticated;
+alter default privileges in schema public grant usage on sequences to anon;
+alter default privileges in schema public grant execute on functions to service_role, authenticated, anon;
 grant execute on function public.get_counterparty_stacks(uuid) to authenticated, anon;
 -- Include the current offer creator in get_trade_details so clients know whose turn it is.
 

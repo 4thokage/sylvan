@@ -36,7 +36,7 @@
 		"prettier-plugin-svelte": "^4.1.1",
 		"prettier-plugin-tailwindcss": "^0.8.0",
 		"supabase": "^2.109.1",
-		"svelte": "^5.56.4",
+		"svelte": "^5.56.5",
 		"svelte-check": "^4.7.2",
 		"tailwindcss": "^4.3.2",
 		"typescript": "~7.0.2",
@@ -48,7 +48,7 @@
 	},
 	"dependencies": {
 		"@lucide/svelte": "1.24.0",
-		"@supabase/supabase-js": "^2.110.4",
+		"@supabase/supabase-js": "^2.110.5",
 		"@tcgdex/sdk": "^2.9.0",
 		"nanoid": "^6.0.0",
 		"papaparse": "^5.5.4",

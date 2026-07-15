@@ -22,7 +22,6 @@ export const pt: Translations = {
 		gameLabel: 'Jogo',
 		save: 'Salvar Lista',
 		saving: 'Salvando...',
-		yourName: 'Seu nome (opcional)',
 		saved: 'Lista Salva!',
 		shareLink: 'Compartilhe este link com amigos',
 		copy: 'Copiar',
@@ -96,7 +95,10 @@ export const pt: Translations = {
 			totalValue: 'Valor Total',
 			byGame: 'Por Jogo',
 			topCards: 'Top 10 Cartas',
-			noPrices: 'Sem dados de preço disponíveis'
+			noPrices: 'Sem dados de preço disponíveis',
+			useMyHaves: 'Valorar meus tem',
+			valueCustomList: 'Valorar lista personalizada',
+			noHaves: 'Você ainda não tem tem. Cole uma coleção abaixo para estimar seu valor.'
 		},
 		fairness: {
 			title: 'Justiça da Troca',

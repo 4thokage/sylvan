@@ -20,7 +20,6 @@ export const en = {
 		gameLabel: 'Game',
 		save: 'Save Wishlist',
 		saving: 'Saving...',
-		yourName: 'Your name (optional)',
 		saved: 'Wishlist Saved!',
 		shareLink: 'Share this link with friends',
 		copy: 'Copy',
@@ -94,7 +93,10 @@ export const en = {
 			totalValue: 'Total Value',
 			byGame: 'By Game',
 			topCards: 'Top 10 Cards',
-			noPrices: 'No price data available'
+			noPrices: 'No price data available',
+			useMyHaves: 'Value my haves',
+			valueCustomList: 'Value a custom list',
+			noHaves: 'You have no haves yet. Paste a collection below to estimate its value.'
 		},
 		fairness: {
 			title: 'Trade Fairness',

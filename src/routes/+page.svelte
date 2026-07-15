@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { parseCardList } from '$lib/parser';
 	import type { WishlistCard, LookupResult } from '$lib/types';
-	import { getCreatorFingerprint } from '$lib/device';
+	import { getCreatorFingerprint, generateAnonymousName } from '$lib/device';
 	import { resolve } from '$app/paths';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import { useClerkContext } from 'svelte-clerk';
@@ -13,7 +13,11 @@
 	let clerkCtx = useClerkContext();
 	let isSignedIn = $derived(!!clerkCtx.user?.id);
 	let input = $state('');
-	let ownerName = $state('');
+	let ownerName = $derived(
+		isSignedIn
+			? clerkCtx.user?.fullName || clerkCtx.user?.username || clerkCtx.user?.firstName || null
+			: generateAnonymousName()
+	);
 	let selectedGame = $state('mtg');
 	let isSaving = $state(false);
 	let savedId = $state<string | null>(null);
@@ -363,16 +367,6 @@
 							class="h-[500px] w-full resize-none rounded-xl border border-border bg-surface-raised p-4 font-mono text-sm leading-relaxed text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 						></textarea>
 						<div class="flex items-center justify-between gap-4">
-							{#if !isSignedIn}
-								<div class="flex-1">
-									<input
-										type="text"
-										bind:value={ownerName}
-										placeholder={t($localeStore, 'wants.yourName')}
-										class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
-									/>
-								</div>
-							{/if}
 							<div class="flex items-center gap-4">
 								<p class="text-sm text-text-muted">
 									{parsedCards.length}

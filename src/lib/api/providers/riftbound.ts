@@ -1,4 +1,5 @@
 import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
+import { providerLimiters } from './request';
 
 const API_BASE = 'https://api.riftcodex.com';
 
@@ -111,23 +112,19 @@ export const riftboundProvider: TcgProvider = {
 		query: string,
 		limit = 25
 	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
-		try {
-			const response = await fetch(
-				`${API_BASE}/cards/name?fuzzy=${encodeURIComponent(query)}&size=${limit}`,
-				{ headers: HEADERS }
-			);
-			if (!response.ok) {
-				return { cards: [], totalCount: 0, hasMore: false };
-			}
-			const data = await response.json();
-			const items = Array.isArray(data) ? data : data.items || [];
-			const cards = items.map(mapToTcgCard);
-			const totalCount = data.total ?? items.length;
-			const hasMore = data.page != null && data.pages != null ? data.page < data.pages : false;
-			return { cards, totalCount, hasMore };
-		} catch {
+		const response = await providerLimiters.riftbound({
+			url: `${API_BASE}/cards/name?fuzzy=${encodeURIComponent(query)}&size=${limit}`,
+			headers: HEADERS
+		});
+		if (!response.ok) {
 			return { cards: [], totalCount: 0, hasMore: false };
 		}
+		const data = await response.json();
+		const items = Array.isArray(data) ? data : data.items || [];
+		const cards = items.map(mapToTcgCard);
+		const totalCount = data.total ?? items.length;
+		const hasMore = data.page != null && data.pages != null ? data.page < data.pages : false;
+		return { cards, totalCount, hasMore };
 	},
 
 	async fuzzySearchCard(name: string): Promise<TcgCard | null> {
@@ -136,18 +133,15 @@ export const riftboundProvider: TcgProvider = {
 
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getCard(name: string, _set?: string, _collectorNumber?: string): Promise<TcgCard | null> {
-		try {
-			let response = await fetch(`${API_BASE}/cards/name?fuzzy=${encodeURIComponent(name)}`, {
-				headers: HEADERS
-			});
-			if (!response.ok) return null;
-			const data = await response.json();
-			const raw = Array.isArray(data) ? data[0] : data.items?.[0];
-			if (!raw) return null;
-			return mapToTcgCard(raw);
-		} catch {
-			return null;
-		}
+		const response = await providerLimiters.riftbound({
+			url: `${API_BASE}/cards/name?fuzzy=${encodeURIComponent(name)}`,
+			headers: HEADERS
+		});
+		if (!response.ok) return null;
+		const data = await response.json();
+		const raw = Array.isArray(data) ? data[0] : data.items?.[0];
+		if (!raw) return null;
+		return mapToTcgCard(raw);
 	},
 
 	async getCardsByIdentifiers(

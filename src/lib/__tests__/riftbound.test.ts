@@ -31,11 +31,13 @@ function mockCard(overrides: Record<string, unknown> = {}) {
 	};
 }
 
-function mockFetchOnce(body: unknown, ok = true) {
+function mockFetchOnce(body: unknown, ok = true, status = ok ? 200 : 404) {
 	vi.stubGlobal(
 		'fetch',
 		vi.fn().mockResolvedValue({
 			ok,
+			status,
+			headers: { get: () => null },
 			json: vi.fn().mockResolvedValue(body)
 		})
 	);

@@ -1,12 +1,12 @@
 import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
-import { searchRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
+import { lookupRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { resolveCards } from '$lib/api/card-service';
 import { parseCardList } from '$lib/parser';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
-	const rateCheck = searchRateLimiter(event);
+	const rateCheck = lookupRateLimiter(event);
 	if (!rateCheck.passed) {
 		return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 	}

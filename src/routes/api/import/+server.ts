@@ -12,7 +12,7 @@ export const POST: RequestHandler = async (event) => {
 	const authUser = await requireUser(event);
 	if (!('clerkUserId' in authUser)) return authUser;
 	const clerkUserId = authUser.clerkUserId;
-	const rateCheck = saveRateLimiter(event);
+	const rateCheck = saveRateLimiter(event, clerkUserId);
 	if (!rateCheck.passed) {
 		return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 	}

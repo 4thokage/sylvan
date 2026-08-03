@@ -1,5 +1,4 @@
 import type { RequestHandler } from './$types';
-import type { RequestEvent } from '@sveltejs/kit';
 import { json } from '@sveltejs/kit';
 import { apiRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { requireAuth } from '$lib/server/middleware/auth';
@@ -36,10 +35,7 @@ export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	const clerkUserId = await requireAuth(event);
 	if (typeof clerkUserId !== 'string') return clerkUserId;
-	const rateCheck = apiRateLimiter({
-		request,
-		getClientAddress: () => request.headers.get('x-forwarded-for') || 'unknown'
-	} as unknown as RequestEvent);
+	const rateCheck = apiRateLimiter(event, clerkUserId);
 	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 
 	const { data: user } = await getSupabase()

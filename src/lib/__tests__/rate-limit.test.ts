@@ -56,4 +56,18 @@ describe('createRateLimiter', () => {
 		// New window should have started
 		expect(result2.passed).toBe(true);
 	});
+
+	it('keys by user id when provided', () => {
+		const limiter = createRateLimiter('testUser', { windowMs: 60000, maxRequests: 2 });
+		expect(limiter(mockRequest('1.1.1.1'), 'user-a').passed).toBe(true);
+		expect(limiter(mockRequest('2.2.2.2'), 'user-a').passed).toBe(true);
+		expect(limiter(mockRequest('3.3.3.3'), 'user-a').passed).toBe(false);
+		expect(limiter(mockRequest('1.1.1.1'), 'user-b').passed).toBe(true);
+	});
+
+	it('falls back to IP when no user id', () => {
+		const limiter = createRateLimiter('testAnon', { windowMs: 60000, maxRequests: 1 });
+		expect(limiter(mockRequest('1.1.1.1')).passed).toBe(true);
+		expect(limiter(mockRequest('1.1.1.1')).passed).toBe(false);
+	});
 });

@@ -29,7 +29,7 @@ export function createRateLimiter(name: string, config: RateLimitConfig) {
 		cleanup.unref();
 	}
 
-	return function rateLimit(event: RequestEvent): {
+	return function rateLimit(event: RequestEvent, userKey?: string | null): {
 		passed: boolean;
 		remaining: number;
 		resetAt: number;
@@ -38,7 +38,7 @@ export function createRateLimiter(name: string, config: RateLimitConfig) {
 			event.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
 			event.getClientAddress() ||
 			'unknown';
-		const key = ip;
+		const key = userKey ? `user:${userKey}` : ip;
 
 		const now = Date.now();
 		const entry = store.get(key);
@@ -60,7 +60,11 @@ export function createRateLimiter(name: string, config: RateLimitConfig) {
 export const apiRateLimiter = createRateLimiter('api', { windowMs: 60_000, maxRequests: 60 });
 export const saveRateLimiter = createRateLimiter('save', { windowMs: 60_000, maxRequests: 10 });
 export const searchRateLimiter = createRateLimiter('search', { windowMs: 60_000, maxRequests: 30 });
-export const authRateLimiter = createRateLimiter('auth', { windowMs: 60_000, maxRequests: 20 });
+export const lookupRateLimiter = createRateLimiter('lookup', { windowMs: 60_000, maxRequests: 10 });
+export const collectionSaveRateLimiter = createRateLimiter('collectionSave', {
+	windowMs: 60_000,
+	maxRequests: 30
+});
 
 export function rateLimitResponse(remaining: number, resetAt: number) {
 	return new Response(

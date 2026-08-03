@@ -1,8 +1,8 @@
 import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
+import { providerLimiters } from './request';
 
 const API_BASE = 'https://api.scryfall.com';
 const MAX_BATCH = 75;
-const RATE_LIMIT_MS = 100;
 
 interface ScryfallCard {
 	id: string;
@@ -52,10 +52,6 @@ const HEADERS = {
 	Accept: 'application/json',
 	'User-Agent': 'SylvanApp/1.0 (contact@sylvan.app)'
 };
-
-async function delay(ms: number) {
-	return new Promise((r) => setTimeout(r, ms));
-}
 
 function extractImageUrl(raw: ScryfallCard): string | null {
 	return raw.image_uris?.normal || raw.card_faces?.[0]?.image_uris?.normal || null;
@@ -194,11 +190,10 @@ export const scryfallProvider: TcgProvider = {
 		query: string,
 		limit = 25
 	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
-		await delay(RATE_LIMIT_MS);
-		const response = await fetch(
-			`${API_BASE}/cards/search?q=${encodeURIComponent(query)}&unique=cards&order=released&dir=desc`,
-			{ headers: HEADERS }
-		);
+		const response = await providerLimiters.scryfall({
+			url: `${API_BASE}/cards/search?q=${encodeURIComponent(query)}&unique=cards&order=released&dir=desc`,
+			headers: HEADERS
+		});
 
 		if (response.status === 404) {
 			return { cards: [], totalCount: 0, hasMore: false };
@@ -220,10 +215,10 @@ export const scryfallProvider: TcgProvider = {
 	},
 
 	async fuzzySearchCard(name: string): Promise<TcgCard | null> {
-		await delay(RATE_LIMIT_MS);
-		const url = `${API_BASE}/cards/named?fuzzy=${encodeURIComponent(name)}`;
-
-		const response = await fetch(url, { headers: HEADERS });
+		const response = await providerLimiters.scryfall({
+			url: `${API_BASE}/cards/named?fuzzy=${encodeURIComponent(name)}`,
+			headers: HEADERS
+		});
 		if (response.status === 404) return null;
 		if (!response.ok) throw new Error(`Scryfall fuzzy lookup failed: ${response.status}`);
 		const card = await response.json();
@@ -232,7 +227,6 @@ export const scryfallProvider: TcgProvider = {
 	},
 
 	async getCard(name: string, set?: string, collectorNumber?: string): Promise<TcgCard | null> {
-		await delay(RATE_LIMIT_MS);
 		let url = `${API_BASE}/cards/named?exact=${encodeURIComponent(name)}`;
 		if (set && collectorNumber) {
 			url = `${API_BASE}/cards/${set.toLowerCase()}/${collectorNumber}`;
@@ -240,7 +234,7 @@ export const scryfallProvider: TcgProvider = {
 			url = `${API_BASE}/cards/named?exact=${encodeURIComponent(name)}&set=${set.toLowerCase()}`;
 		}
 
-		const response = await fetch(url, { headers: HEADERS });
+		const response = await providerLimiters.scryfall({ url, headers: HEADERS });
 		if (response.status === 404) return null;
 		if (!response.ok) throw new Error(`Scryfall lookup failed: ${response.status}`);
 		const card = await response.json();
@@ -255,9 +249,8 @@ export const scryfallProvider: TcgProvider = {
 
 		for (let i = 0; i < identifiers.length; i += MAX_BATCH) {
 			const batch = identifiers.slice(i, i + MAX_BATCH);
-			await delay(RATE_LIMIT_MS);
-
-			const response = await fetch(`${API_BASE}/cards/collection`, {
+			const response = await providerLimiters.scryfall({
+				url: `${API_BASE}/cards/collection`,
 				method: 'POST',
 				headers: HEADERS,
 				body: JSON.stringify({
@@ -291,11 +284,10 @@ export const scryfallProvider: TcgProvider = {
 		let hasMore = true;
 
 		while (hasMore) {
-			await delay(RATE_LIMIT_MS);
-			const response = await fetch(
-				`${API_BASE}/cards/search?q=${encodeURIComponent(cardName)}&unique=prints&order=released&dir=desc&page=${page}`,
-				{ headers: HEADERS }
-			);
+			const response = await providerLimiters.scryfall({
+				url: `${API_BASE}/cards/search?q=${encodeURIComponent(cardName)}&unique=prints&order=released&dir=desc&page=${page}`,
+				headers: HEADERS
+			});
 
 			if (!response.ok) {
 				if (response.status === 429) throw new Error('Rate limited by Scryfall API');

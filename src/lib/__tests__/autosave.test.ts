@@ -63,10 +63,7 @@ describe('createAutosave', () => {
 	});
 
 	it('reports errors and retries on the next edit', async () => {
-		const persist = vi
-			.fn()
-			.mockRejectedValueOnce(new Error('boom'))
-			.mockResolvedValue(undefined);
+		const persist = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(undefined);
 		const states: string[] = [];
 		const autosave = createAutosave({
 			debounceMs: 20,

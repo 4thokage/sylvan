@@ -39,8 +39,7 @@ export function createProviderLimiter(
 ) {
 	const { maxRetries, timeoutMs } = config;
 	const retryable = config.retryableStatuses ?? DEFAULT_RETRYABLE;
-	const fetchImpl =
-		deps.fetchImpl ?? ((input: string, init: RequestInit) => fetch(input, init));
+	const fetchImpl = deps.fetchImpl ?? ((input: string, init: RequestInit) => fetch(input, init));
 	const now = deps.now ?? Date.now;
 	const sleep =
 		deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -77,14 +76,7 @@ export function createProviderLimiter(
 				let timer: ReturnType<typeof setTimeout> | undefined;
 				const timeoutPromise = new Promise<never>((_, reject) => {
 					timer = setTimeout(
-						() =>
-							reject(
-								new ProviderRequestError(
-									provider,
-									null,
-									`${provider} request timed out`
-								)
-							),
+						() => reject(new ProviderRequestError(provider, null, `${provider} request timed out`)),
 						timeoutMs
 					);
 				});

@@ -29,7 +29,10 @@ export function createRateLimiter(name: string, config: RateLimitConfig) {
 		cleanup.unref();
 	}
 
-	return function rateLimit(event: RequestEvent, userKey?: string | null): {
+	return function rateLimit(
+		event: RequestEvent,
+		userKey?: string | null
+	): {
 		passed: boolean;
 		remaining: number;
 		resetAt: number;

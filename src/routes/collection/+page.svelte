@@ -260,9 +260,9 @@
 					}
 				}
 
-			collectionCards = Array.from(existingMap.values());
-			autosave?.markDirty(collectionCards);
-			input = '';
+				collectionCards = Array.from(existingMap.values());
+				autosave?.markDirty(collectionCards);
+				input = '';
 				message = {
 					type: 'success',
 					text: `Added ${newCards.length} cards`
@@ -405,9 +405,7 @@
 						{t($localeStore, 'haves.saving')}
 					</span>
 				{:else if autosaveState.status === 'saved'}
-					<span
-						class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-muted"
-					>
+					<span class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-muted">
 						{t($localeStore, 'haves.saved')}
 					</span>
 				{:else if autosaveState.status === 'error'}
@@ -482,14 +480,14 @@
 							<input type="file" accept=".txt,.csv" class="hidden" onchange={handleFile} />
 						</label>
 						<button
-						onclick={handleAdd}
-						disabled={!input.trim() || isLoading}
-						class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
-					>
-						{isLoading ? t($localeStore, 'common.loading') : t($localeStore, 'haves.add')}
-					</button>
+							onclick={handleAdd}
+							disabled={!input.trim() || isLoading}
+							class="rounded-lg bg-accent-bg px-4 py-2 text-sm text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
+						>
+							{isLoading ? t($localeStore, 'common.loading') : t($localeStore, 'haves.add')}
+						</button>
+					</div>
 				</div>
-			</div>
 			</div>
 
 			<div class="space-y-4">

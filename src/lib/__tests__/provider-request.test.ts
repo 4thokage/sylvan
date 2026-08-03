@@ -1,8 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-	createProviderLimiter,
-	ProviderRequestError
-} from '../api/providers/request';
+import { createProviderLimiter, ProviderRequestError } from '../api/providers/request';
 
 function mockResponse(status: number, headers: Record<string, string> = {}): Response {
 	return {

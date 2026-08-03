@@ -5,16 +5,20 @@
 	import CardRow from '$lib/components/CardRow.svelte';
 	import CardEditSheet from '$lib/components/CardEditSheet.svelte';
 	import CardSearchBox from '$lib/components/CardSearchBox.svelte';
+	import { createAutosave } from '$lib/client/autosave';
+	import type { AutosaveHandle, AutosaveState } from '$lib/client/autosave';
 
 	let input = $state('');
 	let collectionCards = $state<WishlistCard[]>([]);
 	let isLoading = $state(false);
-	let isSaving = $state(false);
 	let isLoadingCollection = $state(true);
 	let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+	let autosaveState = $state<AutosaveState>({ status: 'idle', error: null });
 	let selectedGame = $state('mtg');
 	let selectedCard = $state<WishlistCard | null>(null);
 	let isDrawerOpen = $state(false);
+
+	let autosave: AutosaveHandle | null = null;
 
 	import { useClerkContext } from 'svelte-clerk';
 	import { getLocaleStore, t } from '$lib/i18n';
@@ -129,12 +133,8 @@
 		}
 	}
 
-	async function saveCollection() {
-		if (!currentUserId || isSaving) return;
-		isSaving = true;
-		message = null;
-
-		const cardsToSave = collectionCards.map((card) => ({
+	function cardToSavePayload(card: WishlistCard) {
+		return {
 			name: card.name,
 			qty: card.qty,
 			cardPrintingId: card.cardPrintingId || null,
@@ -148,39 +148,55 @@
 			language: card.language,
 			location: null,
 			notes: null
-		}));
+		};
+	}
 
-		try {
-			const response = await fetch('/api/collection', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ cards: cardsToSave, gameSlug: selectedGame })
-			});
-			const result = await response.json();
-			if (result.success) {
-				const errors: string[] = result.data?.errors || [];
-				if (errors.length > 0) {
-					message = {
-						type: 'error',
-						text: `Saved, but ${errors.length} card(s) could not be resolved: ${errors
-							.slice(0, 3)
-							.join(', ')}${errors.length > 3 ? '…' : ''}`
-					};
-				} else {
-					message = { type: 'success', text: 'Collection saved!' };
-					setTimeout(() => (message = null), 3000);
-				}
-			} else {
-				message = { type: 'error', text: result.error?.message || 'Failed to save' };
-			}
-		} catch {
-			message = { type: 'error', text: 'Failed to save collection' };
-		} finally {
-			isSaving = false;
+	async function persistCollection(snapshot: WishlistCard[], game: string) {
+		if (!currentUserId) return;
+		const response = await fetch('/api/collection', {
+			method: 'POST',
+			keepalive: true,
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ cards: snapshot.map(cardToSavePayload), gameSlug: game })
+		});
+		const result = await response.json();
+		if (!result.success) {
+			throw new Error(result.error?.message || 'Failed to save');
+		}
+		const errors: string[] = result.data?.errors || [];
+		if (errors.length > 0) {
+			message = {
+				type: 'error',
+				text: `Saved, but ${errors.length} card(s) could not be resolved: ${errors
+					.slice(0, 3)
+					.join(', ')}${errors.length > 3 ? '…' : ''}`
+			};
 		}
 	}
 
+	$effect(() => {
+		if (!isSignedIn || isLoadingCollection) {
+			autosave?.dispose();
+			autosave = null;
+			return;
+		}
+		if (!autosave) {
+			autosave = createAutosave({
+				debounceMs: 2000,
+				persist: (snapshot) => persistCollection(snapshot as WishlistCard[], selectedGame),
+				onState: (s) => {
+					autosaveState = s;
+				}
+			});
+		}
+		return () => {
+			autosave?.dispose();
+			autosave = null;
+		};
+	});
+
 	async function clearCollection() {
+		autosave?.cancelPending();
 		try {
 			await fetch(`/api/collection?game=${selectedGame}`, { method: 'DELETE' });
 			collectionCards = [];
@@ -244,8 +260,9 @@
 					}
 				}
 
-				collectionCards = Array.from(existingMap.values());
-				input = '';
+			collectionCards = Array.from(existingMap.values());
+			autosave?.markDirty(collectionCards);
+			input = '';
 				message = {
 					type: 'success',
 					text: `Added ${newCards.length} cards`
@@ -275,6 +292,7 @@
 		}
 		message = { type: 'success', text: `Added ${card.name}` };
 		setTimeout(() => (message = null), 3000);
+		autosave?.markDirty(collectionCards);
 	}
 
 	async function handleFile(event: Event) {
@@ -309,6 +327,7 @@
 
 	function handleSaveCard(updated: WishlistCard) {
 		collectionCards = collectionCards.map((c) => (c.localId === updated.localId ? updated : c));
+		autosave?.markDirty(collectionCards);
 		isDrawerOpen = false;
 		selectedCard = null;
 	}
@@ -316,11 +335,17 @@
 	function handleRemoveCard() {
 		if (!selectedCard) return;
 		collectionCards = collectionCards.filter((c) => c.localId !== selectedCard!.localId);
+		autosave?.markDirty(collectionCards);
 		isDrawerOpen = false;
 		selectedCard = null;
 	}
 
 	async function switchGame(game: string) {
+		if (game === selectedGame) return;
+		if (autosave) {
+			await autosave.flushNow();
+			autosave.cancelPending();
+		}
 		selectedGame = game;
 		collectionCards = [];
 		isLoadingCollection = true;
@@ -370,13 +395,29 @@
 				>
 					{t($localeStore, 'haves.clear')}
 				</button>
-				<button
-					onclick={saveCollection}
-					disabled={isSaving || collectionCards.length === 0}
-					class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
-				>
-					{isSaving ? t($localeStore, 'haves.saving') : t($localeStore, 'haves.save')}
-				</button>
+				{#if autosaveState.status === 'saving'}
+					<span
+						class="inline-flex items-center gap-2 rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft"
+					>
+						<span
+							class="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
+						></span>
+						{t($localeStore, 'haves.saving')}
+					</span>
+				{:else if autosaveState.status === 'saved'}
+					<span
+						class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-muted"
+					>
+						{t($localeStore, 'haves.saved')}
+					</span>
+				{:else if autosaveState.status === 'error'}
+					<span
+						class="rounded-lg border border-danger-bg px-3 py-2 text-sm text-danger"
+						title={autosaveState.error || ''}
+					>
+						{t($localeStore, 'haves.saveError')}
+					</span>
+				{/if}
 			</div>
 		</div>
 

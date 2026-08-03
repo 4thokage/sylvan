@@ -113,15 +113,18 @@ export const riftboundProvider: TcgProvider = {
 	): Promise<{ cards: TcgCard[]; totalCount: number; hasMore: boolean }> {
 		try {
 			const response = await fetch(
-				`${API_BASE}/cards/search?query=${encodeURIComponent(query)}&size=${limit}`,
+				`${API_BASE}/cards/name?fuzzy=${encodeURIComponent(query)}&size=${limit}`,
 				{ headers: HEADERS }
 			);
 			if (!response.ok) {
 				return { cards: [], totalCount: 0, hasMore: false };
 			}
 			const data = await response.json();
-			const cards = (data.data || []).map(mapToTcgCard);
-			return { cards, totalCount: data.total || 0, hasMore: false };
+			const items = Array.isArray(data) ? data : data.items || [];
+			const cards = items.map(mapToTcgCard);
+			const totalCount = data.total ?? items.length;
+			const hasMore = data.page != null && data.pages != null ? data.page < data.pages : false;
+			return { cards, totalCount, hasMore };
 		} catch {
 			return { cards: [], totalCount: 0, hasMore: false };
 		}
@@ -134,19 +137,14 @@ export const riftboundProvider: TcgProvider = {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getCard(name: string, _set?: string, _collectorNumber?: string): Promise<TcgCard | null> {
 		try {
-			let response = await fetch(`${API_BASE}/cards/name?exact=${encodeURIComponent(name)}`, {
+			let response = await fetch(`${API_BASE}/cards/name?fuzzy=${encodeURIComponent(name)}`, {
 				headers: HEADERS
 			});
-			if (!response.ok) {
-				response = await fetch(`${API_BASE}/cards/name?fuzzy=${encodeURIComponent(name)}`, {
-					headers: HEADERS
-				});
-			}
 			if (!response.ok) return null;
 			const data = await response.json();
-			const card = Array.isArray(data) ? data[0] : data;
-			if (!card) return null;
-			return mapToTcgCard(card);
+			const raw = Array.isArray(data) ? data[0] : data.items?.[0];
+			if (!raw) return null;
+			return mapToTcgCard(raw);
 		} catch {
 			return null;
 		}

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import TCGdex, { Query } from '@tcgdex/sdk';
 import type { TcgProvider, TcgCard, TcgPrinting, TcgExternalRef } from './types';
+import { providerLimiters } from './request';
 
 const tcgdex = new TCGdex('en');
 
@@ -131,6 +132,12 @@ async function getFullCard(raw: any): Promise<any> {
 	return raw;
 }
 
+// The TCGdex SDK performs its own internal HTTP requests, which are not
+// interceptable. Pacing the outer logical calls still bounds our request rate.
+async function paced<T>(fn: () => Promise<T>): Promise<T> {
+	return providerLimiters.tcgdex.withSlot(fn);
+}
+
 export const pokemonProvider: TcgProvider = {
 	gameSlug: 'pokemon',
 	gameName: 'Pokémon TCG',
@@ -145,10 +152,10 @@ export const pokemonProvider: TcgProvider = {
 			.contains('name', query)
 			.sort('set.releaseDate', 'DESC')
 			.paginate(1, limit);
-		const results = await tcgdex.card.list(q);
+		const results = await paced(() => tcgdex.card.list(q));
 		const cards: TcgCard[] = [];
 		for (const r of results.slice(0, limit)) {
-			const full = await getFullCard(r);
+			const full = await paced(() => getFullCard(r));
 			for (const card of splitFinishes(full)) {
 				cards.push(card);
 			}
@@ -163,21 +170,21 @@ export const pokemonProvider: TcgProvider = {
 	async getCard(name: string, set?: string, collectorNumber?: string): Promise<TcgCard | null> {
 		if (set && collectorNumber) {
 			const id = `${set.toLowerCase()}-${collectorNumber}`;
-			const card = await tcgdex.card.get(id);
+			const card = await paced(() => tcgdex.card.get(id));
 			if (card) {
-				const full = await getFullCard(card);
+				const full = await paced(() => getFullCard(card));
 				const variants = Array.from(splitFinishes(full));
 				return variants[0] || null;
 			}
 		}
 		let q = Query.create().equal('name', name).paginate(1, 1);
-		let results = await tcgdex.card.list(q);
+		let results = await paced(() => tcgdex.card.list(q));
 		if (results.length === 0) {
 			q = Query.create().contains('name', name).paginate(1, 1);
-			results = await tcgdex.card.list(q);
+			results = await paced(() => tcgdex.card.list(q));
 		}
 		if (results.length === 0) return null;
-		const full = await getFullCard(results[0]);
+		const full = await paced(() => getFullCard(results[0]));
 		const variants = Array.from(splitFinishes(full));
 		return variants[0] || null;
 	},
@@ -195,14 +202,14 @@ export const pokemonProvider: TcgProvider = {
 
 	async getAllPrintings(cardName: string): Promise<TcgPrinting[]> {
 		let q = Query.create().equal('name', cardName).sort('set.releaseDate', 'DESC');
-		let results = await tcgdex.card.list(q);
+		let results = await paced(() => tcgdex.card.list(q));
 		if (results.length === 0) {
 			q = Query.create().contains('name', cardName).sort('set.releaseDate', 'DESC');
-			results = await tcgdex.card.list(q);
+			results = await paced(() => tcgdex.card.list(q));
 		}
 		const printings: TcgPrinting[] = [];
 		for (const r of results) {
-			const full = await getFullCard(r);
+			const full = await paced(() => getFullCard(r));
 			for (const printing of splitPrintings(full)) {
 				printings.push(printing);
 			}

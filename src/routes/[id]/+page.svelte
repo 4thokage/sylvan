@@ -3,12 +3,24 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
-	import { SvelteMap } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import type { WishlistCard, CardPrices } from '$lib/types';
 	import PriceTooltip from '$lib/components/PriceTooltip.svelte';
+	import { page } from '$app/stores';
+	import { getLocaleStore, t } from '$lib/i18n';
+	import CardTable from '$lib/components/CardTable.svelte';
+	import {
+		parseDisplayMode,
+		normalizeName,
+		groupByCardIdentity,
+		formatCondition,
+		formatPrice,
+		priceToNumber
+	} from '$lib/client/display-mode';
 
 	interface LoadedWishlistItem {
 		id: string;
+		card_id: string;
 		card_name: string;
 		image_url: string | null;
 		quantity: number;
@@ -28,6 +40,8 @@
 	const gameSlug = $derived(wishlist.game_slug || 'mtg');
 	const rawCards = $derived(
 		(wishlist.cards as LoadedWishlistItem[]).map((c) => ({
+			localId: c.id,
+			cardId: c.card_id,
 			name: c.card_name,
 			qty: c.quantity,
 			imageUrl: c.image_url,
@@ -60,6 +74,24 @@
 	const canDelete = $derived(creatorFingerprint === getCreatorFingerprint());
 	let isDeleting = $state(false);
 	let deleteError = $state<string | null>(null);
+
+	let localeStore = getLocaleStore();
+
+	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'visual'));
+	let stacksGroups = $derived(groupByCardIdentity(cards));
+	let collapsed = new SvelteSet<string>();
+
+	function toggleGroup(key: string) {
+		if (collapsed.has(key)) {
+			collapsed.delete(key);
+		} else {
+			collapsed.add(key);
+		}
+	}
+
+	function groupKey(group: WishlistCard[]): string {
+		return group[0].cardId ?? normalizeName(group[0].name);
+	}
 
 	onMount(async () => {
 		cards = rawCards as WishlistCard[];
@@ -97,11 +129,16 @@
 				cards = rawCards.map((card) => {
 					const key = card.cardPrintingId || card.name.toLowerCase();
 					return {
+						localId: card.localId,
+						cardId: card.cardId,
 						name: card.name,
 						qty: card.qty,
 						imageUrl: imageByPrinting.get(key) || card.imageUrl,
 						manaCost: card.manaCost,
 						prices: pricesByPrinting.get(key) || card.prices,
+						cardPrintingId: card.cardPrintingId,
+						set: card.set,
+						collectorNumber: card.collectorNumber,
 						condition: card.condition,
 						finish: card.finish,
 						aftermarketSigned: card.aftermarketSigned,
@@ -228,35 +265,161 @@
 			{/if}
 		</div>
 
-		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-			{#each cards as card (card.cardPrintingId || card.name)}
-				<PriceTooltip {card}>
-					<div
-						class="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-surface-raised transition-all hover:scale-[1.02] hover:border-border-strong"
-					>
-						{#if card.imageUrl}
-							<img
-								src={card.imageUrl}
-								alt={card.name}
-								class="aspect-[5/7] w-full object-cover"
-								loading="lazy"
-							/>
-						{:else}
-							<div class="flex aspect-[5/7] w-full items-center justify-center bg-surface-card">
-								<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
-							</div>
-						{/if}
+		{#if display === 'table'}
+			<CardTable
+				rows={cards}
+				rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
+				columns={[
+					{
+						key: 'name',
+						label: 'display.columns.name',
+						sortValue: (c) => c.name,
+						render: (c) => c.name
+					},
+					{
+						key: 'qty',
+						label: 'display.columns.qty',
+						align: 'right',
+						sortValue: (c) => c.qty,
+						render: (c) => String(c.qty)
+					},
+					{
+						key: 'set',
+						label: 'display.columns.set',
+						sortValue: (c) => c.set ?? '',
+						render: (c) => (c.set ?? '').toUpperCase()
+					},
+					{
+						key: 'collectorNumber',
+						label: 'display.columns.collectorNumber',
+						sortValue: (c) => c.collectorNumber ?? '',
+						render: (c) => c.collectorNumber ?? ''
+					},
+					{
+						key: 'finish',
+						label: 'display.columns.finish',
+						sortValue: (c) => c.finish ?? '',
+						render: (c) => (c.finish && c.finish !== 'non-foil' ? c.finish : '')
+					},
+					{
+						key: 'condition',
+						label: 'display.columns.condition',
+						sortValue: (c) => c.condition,
+						render: (c) => formatCondition(c.condition)
+					},
+					{
+						key: 'language',
+						label: 'display.columns.language',
+						sortValue: (c) => c.language ?? '',
+						render: (c) => c.language ?? ''
+					},
+					{
+						key: 'usd',
+						label: 'display.columns.usd',
+						align: 'right',
+						sortValue: (c) => priceToNumber(c.prices?.usd),
+						render: (c) => formatPrice(c.prices?.usd)
+					},
+					{
+						key: 'eur',
+						label: 'display.columns.eur',
+						align: 'right',
+						sortValue: (c) => priceToNumber(c.prices?.eur),
+						render: (c) => formatPrice(c.prices?.eur, '€')
+					}
+				]}
+			/>
+		{:else if display === 'visual'}
+			<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+				{#each cards as card (card.localId)}
+					<PriceTooltip {card}>
 						<div
-							class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
+							class="relative aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-raised transition-colors hover:border-border-strong"
 						>
-							×{card.qty}
+							{#if card.imageUrl}
+								<img
+									src={card.imageUrl}
+									alt={card.name}
+									loading="lazy"
+									class="absolute inset-0 h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+								/>
+							{:else}
+								<div class="flex h-full w-full items-center justify-center bg-surface-card">
+									<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
+								</div>
+							{/if}
+							<div
+								class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
+							>
+								×{card.qty}
+							</div>
 						</div>
 						<div class="border-t border-border p-2">
 							<p class="truncate text-xs text-text-soft">{card.name}</p>
 						</div>
+					</PriceTooltip>
+				{/each}
+			</div>
+		{:else}
+			<div class="space-y-2">
+				{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
+					{@const identity = group[0]}
+					{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
+					{@const key = groupKey(group)}
+					<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
+						<button
+							type="button"
+							onclick={() => toggleGroup(key)}
+							class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
+						>
+							{#if identity.imageUrl}
+								<img
+									src={identity.imageUrl}
+									alt=""
+									class="h-12 w-8 rounded object-cover"
+									loading="lazy"
+								/>
+							{:else}
+								<div
+									class="flex h-12 w-8 items-center justify-center rounded bg-surface-card text-[8px] text-text-muted"
+								>
+									?
+								</div>
+							{/if}
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm font-medium text-text-soft">{identity.name}</p>
+								<p class="text-xs text-text-muted">
+									{group.length}
+									{t($localeStore, 'wants.cards')} · ×{totalQty}
+								</p>
+							</div>
+							<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
+						</button>
+						{#if !collapsed.has(key)}
+							<div class="divide-y divide-border border-t border-border">
+								{#each group as card (card.localId)}
+									<div
+										class="flex items-center justify-between gap-3 px-4 py-2 text-xs text-text-dim"
+									>
+										<span class="min-w-0 truncate">
+											{[
+												card.set?.toUpperCase(),
+												card.collectorNumber,
+												card.finish,
+												formatCondition(card.condition),
+												card.language
+											]
+												.filter(Boolean)
+												.join(' · ')}
+										</span>
+										<span class="font-medium text-text">×{card.qty}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
-				</PriceTooltip>
-			{/each}
-		</div>
+				{/each}
+			</div>
+		{/if}
 	</main>
 </div>

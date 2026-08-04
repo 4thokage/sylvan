@@ -1,8 +1,17 @@
 <script lang="ts">
-	import { SvelteMap } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { parseCardList, parseCsv, parseDeckbox, cardsToText } from '$lib/parser';
 	import type { WishlistCard, LookupResult } from '$lib/types';
-	import CardRow from '$lib/components/CardRow.svelte';
+	import CardTable from '$lib/components/CardTable.svelte';
+	import { page } from '$app/stores';
+	import {
+		parseDisplayMode,
+		normalizeName,
+		groupByCardIdentity,
+		formatCondition,
+		formatPrice,
+		priceToNumber
+	} from '$lib/client/display-mode';
 	import CardEditSheet from '$lib/components/CardEditSheet.svelte';
 	import CardSearchBox from '$lib/components/CardSearchBox.svelte';
 	import { createAutosave } from '$lib/client/autosave';
@@ -28,6 +37,22 @@
 	let localeStore = getLocaleStore();
 	let currentUserId = $derived(clerkCtx.user?.id ?? data.user?.id ?? null);
 	let isSignedIn = $derived(currentUserId !== null);
+
+	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'stacks'));
+	let stacksGroups = $derived(groupByCardIdentity(collectionCards));
+	let collapsed = new SvelteSet<string>();
+
+	function toggleGroup(key: string) {
+		if (collapsed.has(key)) {
+			collapsed.delete(key);
+		} else {
+			collapsed.add(key);
+		}
+	}
+
+	function groupKey(group: WishlistCard[]): string {
+		return group[0].cardId ?? normalizeName(group[0].name);
+	}
 
 	const games = [
 		{ id: 'mtg', name: 'Magic: The Gathering' },
@@ -88,6 +113,7 @@
 				const cards = result.data.cards.map(
 					(c: {
 						id: string;
+						cardId: string;
 						cardName: string;
 						quantity: number;
 						cardPrintingId: string;
@@ -108,6 +134,7 @@
 						qty: c.quantity,
 						imageUrl: c.imageUrl,
 						cardPrintingId: c.cardPrintingId,
+						cardId: c.cardId,
 						condition: c.condition,
 						aftermarketSigned: c.aftermarketSigned,
 						isAltered: c.isAltered,
@@ -511,11 +538,193 @@
 						></div>
 					</div>
 				{:else if collectionCards.length > 0}
-					<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
-						{#each collectionCards as card (card.localId)}
-							<CardRow {card} onClick={() => openCardEdit(card)} />
-						{/each}
-					</div>
+					{#if display === 'table'}
+						<div class="max-h-[400px] overflow-y-auto pr-2">
+							<CardTable
+								rows={collectionCards}
+								rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
+								onRowClick={(card) => openCardEdit(card)}
+								columns={[
+									{
+										key: 'name',
+										label: 'display.columns.name',
+										sortValue: (c) => c.name,
+										render: (c) => c.name
+									},
+									{
+										key: 'qty',
+										label: 'display.columns.qty',
+										align: 'right',
+										sortValue: (c) => c.qty,
+										render: (c) => String(c.qty)
+									},
+									{
+										key: 'set',
+										label: 'display.columns.set',
+										sortValue: (c) => c.set ?? '',
+										render: (c) => (c.set ?? '').toUpperCase()
+									},
+									{
+										key: 'collectorNumber',
+										label: 'display.columns.collectorNumber',
+										sortValue: (c) => c.collectorNumber ?? '',
+										render: (c) => c.collectorNumber ?? ''
+									},
+									{
+										key: 'finish',
+										label: 'display.columns.finish',
+										sortValue: (c) => c.finish ?? '',
+										render: (c) => (c.finish && c.finish !== 'non-foil' ? c.finish : '')
+									},
+									{
+										key: 'condition',
+										label: 'display.columns.condition',
+										sortValue: (c) => c.condition,
+										render: (c) => formatCondition(c.condition)
+									},
+									{
+										key: 'language',
+										label: 'display.columns.language',
+										sortValue: (c) => c.language ?? '',
+										render: (c) => c.language ?? ''
+									},
+									{
+										key: 'signed',
+										label: 'display.columns.signed',
+										sortValue: (c) => (c.aftermarketSigned ? 1 : 0),
+										render: (c) => (c.aftermarketSigned ? '✓' : '—')
+									},
+									{
+										key: 'altered',
+										label: 'display.columns.altered',
+										sortValue: (c) => (c.isAltered ? 1 : 0),
+										render: (c) => (c.isAltered ? '✓' : '—')
+									},
+									{
+										key: 'tradeable',
+										label: 'display.columns.tradeable',
+										sortValue: (c) => (c.isTradeable ? 1 : 0),
+										render: (c) => (c.isTradeable ? '✓' : '—')
+									},
+									{
+										key: 'usd',
+										label: 'display.columns.usd',
+										align: 'right',
+										sortValue: (c) => priceToNumber(c.prices?.usd),
+										render: (c) => formatPrice(c.prices?.usd)
+									},
+									{
+										key: 'eur',
+										label: 'display.columns.eur',
+										align: 'right',
+										sortValue: (c) => priceToNumber(c.prices?.eur),
+										render: (c) => formatPrice(c.prices?.eur, '€')
+									}
+								]}
+							/>
+						</div>
+					{:else if display === 'visual'}
+						<div class="max-h-[400px] overflow-y-auto pr-2">
+							<div class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+								{#each collectionCards as card (card.localId)}
+									<button
+										type="button"
+										onclick={() => openCardEdit(card)}
+										class="block w-full text-left"
+									>
+										<div
+											class="relative aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-raised transition-colors hover:border-border-strong"
+										>
+											{#if card.imageUrl}
+												<img
+													src={card.imageUrl}
+													alt={card.name}
+													loading="lazy"
+													class="absolute inset-0 h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+												/>
+											{:else}
+												<div class="flex h-full w-full items-center justify-center bg-surface-card">
+													<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
+												</div>
+											{/if}
+											<div
+												class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
+											>
+												×{card.qty}
+											</div>
+										</div>
+										<div class="border-t border-border p-2">
+											<p class="truncate text-xs text-text-soft">{card.name}</p>
+										</div>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{:else}
+						<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
+							{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
+								{@const identity = group[0]}
+								{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
+								{@const key = groupKey(group)}
+								<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
+									<button
+										type="button"
+										onclick={() => toggleGroup(key)}
+										class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
+									>
+										{#if identity.imageUrl}
+											<img
+												src={identity.imageUrl}
+												alt=""
+												class="h-12 w-8 rounded object-cover"
+												loading="lazy"
+											/>
+										{:else}
+											<div
+												class="flex h-12 w-8 items-center justify-center rounded bg-surface-card text-[8px] text-text-muted"
+											>
+												?
+											</div>
+										{/if}
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-medium text-text-soft">{identity.name}</p>
+											<p class="text-xs text-text-muted">
+												{group.length}
+												{t($localeStore, 'display.stackCount')} · ×{totalQty}
+											</p>
+										</div>
+										<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
+									</button>
+									{#if !collapsed.has(key)}
+										<div class="divide-y divide-border border-t border-border">
+											{#each group as card (card.localId)}
+												<button
+													type="button"
+													onclick={() => openCardEdit(card)}
+													class="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-xs text-text-dim transition-colors hover:bg-surface-card"
+												>
+													<span class="min-w-0 truncate">
+														{[
+															formatCondition(card.condition),
+															card.finish && card.finish !== 'non-foil' ? card.finish : '',
+															card.set?.toUpperCase(),
+															card.collectorNumber,
+															card.language,
+															card.aftermarketSigned ? 'Signed' : '',
+															card.isAltered ? 'Altered' : ''
+														]
+															.filter(Boolean)
+															.join(' · ')}
+													</span>
+													<span class="font-medium text-text">×{card.qty}</span>
+												</button>
+											{/each}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{/if}
 				{:else}
 					<div
 						class="flex h-[300px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-surface-raised/50"

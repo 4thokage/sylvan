@@ -19,6 +19,14 @@
 - Tests run in the `server` vitest project (node env); use relative imports (`../client/...`), matching `src/lib/__tests__/autosave.test.ts`.
 - Repo commit style: `feat:`, `fix:`, `docs:`, `chore:` prefixes.
 
+## Review Amendments (approved 2026-08-04)
+
+Incorporates three review notes before execution:
+
+1. **No index keys in the sortable table.** `CardTable` gains a required `rowKey: (row: T) => string` prop and keys its row `{#each}` with it. Stacks groups are keyed by the stable group key expression, not `gi`.
+2. **Reactive Set mutation — verified.** Plain `Set` stored in `$state` is NOT reactive in Svelte 5.56.8: the state proxy only wraps plain objects/arrays, so `.add()`/`.delete()` on a raw `Set` never invalidates dependents. Verified against installed source and a live `svelte/reactivity` test. Use `SvelteSet` from `svelte/reactivity` (`let collapsed = new SvelteSet<string>()`) — it wraps mutating methods in signals, is reactive, and its server export aliases `globalThis.Set` (SSR-safe).
+3. **`Portal.svelte` is a Clerk mounting helper, not a generic portal.** Renamed `src/lib/components/ClerkMount.svelte`; doc comments and the file-structure table describe it as single-purpose (mount a Svelte snippet into a Clerk modal element), not a reusable portal.
+
 ---
 
 ## File Structure
@@ -27,7 +35,7 @@
 | --- | --- |
 | `src/lib/client/display-mode.ts` (create) | `parseDisplayMode`, `normalizeName`, `groupByCardIdentity`, `formatCondition`, `formatPrice`, `priceToNumber` — pure, unit-testable |
 | `src/lib/__tests__/display-mode.test.ts` (create) | Unit tests for the above |
-| `src/lib/components/Portal.svelte` (create) | Renders a Svelte snippet inside an externally-mounted target (context-preserving) |
+| `src/lib/components/ClerkMount.svelte` (create) | Clerk-specific mount helper: renders a Svelte snippet into an element provided by Clerk (custom user-profile page). Not a generic portal — single purpose, named for its use |
 | `src/lib/components/UserMenu.svelte` (create) | Custom avatar + dropdown (Profile / Inbox / Manage account / Sign out) |
 | `src/lib/components/CardTable.svelte` (create) | Generic sortable table used by table view |
 | `src/lib/components/HeaderNav.svelte` (modify) | Swap `<UserButton>` for `<UserMenu>`, drop `clerkAppearance` |
@@ -348,10 +356,10 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 
 ---
 
-## Task 3: Portal + UserMenu components, wire into HeaderNav
+## Task 3: ClerkMount + UserMenu components, wire into HeaderNav
 
 **Files:**
-- Create: `src/lib/components/Portal.svelte`
+- Create: `src/lib/components/ClerkMount.svelte`
 - Create: `src/lib/components/UserMenu.svelte`
 - Modify: `src/lib/components/HeaderNav.svelte`
 
@@ -359,9 +367,11 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 - Consumes: `nav.profile`, `nav.manageAccount`, `nav.inbox`, `nav.signOut`, `profile.bio` i18n paths; `ProfileInfoPage.svelte` (existing); `./icons/ProfileIcon.svelte`, `./icons/InboxIcon.svelte` (existing).
 - Produces: `<UserMenu />` (no props) rendered by `HeaderNav`.
 
-- [ ] **Step 1: Create `Portal.svelte`**
+- [ ] **Step 1: Create `ClerkMount.svelte`**
 
-`src/lib/components/Portal.svelte`:
+`ClerkMount.svelte` exists solely so `svelte`'s `mount()` can render a Svelte snippet (with its component context intact) into a DOM element Clerk hands us for a custom user-profile page. It is intentionally trivial and single-purpose — not a general portal abstraction.
+
+`src/lib/components/ClerkMount.svelte`:
 
 ```svelte
 <script lang="ts">
@@ -381,7 +391,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 	import { resolve } from '$app/paths';
 	import { useClerkContext } from 'svelte-clerk';
 	import { getLocaleStore, t } from '$lib/i18n';
-	import Portal from './Portal.svelte';
+	import ClerkMount from './ClerkMount.svelte';
 	import ProfileInfoPage from './ProfileInfoPage.svelte';
 	import ProfileIcon from './icons/ProfileIcon.svelte';
 	import InboxIcon from './icons/InboxIcon.svelte';
@@ -433,7 +443,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 					url: 'custom',
 					label: t(localeStore, 'profile.bio'),
 					mount(el) {
-						profileApp = mount(Portal, { target: el, props: { children: profilePageSnippet } });
+						profileApp = mount(ClerkMount, { target: el, props: { children: profilePageSnippet } });
 					},
 					unmount() {
 						if (profileApp) {
@@ -629,7 +639,7 @@ Expected: PASS — no type errors. If `pnpm check` reports unused imports (e.g.,
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/components/Portal.svelte src/lib/components/UserMenu.svelte src/lib/components/HeaderNav.svelte
+git add src/lib/components/ClerkMount.svelte src/lib/components/UserMenu.svelte src/lib/components/HeaderNav.svelte
 git commit -m "feat: replace Clerk UserButton with custom theme-synced user menu"
 ```
 
@@ -643,8 +653,9 @@ git commit -m "feat: replace Clerk UserButton with custom theme-synced user menu
 **Interfaces:**
 - Consumes: `display.columns.*` i18n paths.
 - Produces:
-  - `<CardTable rows={T[]} columns={TableColumn<T>[]} onRowClick?={(row: T) => void} />`
+  - `<CardTable rows={T[]} columns={TableColumn<T>[]} rowKey={(row: T) => string} onRowClick?={(row: T) => void} />`
   - `export interface TableColumn<T> { key: string; label: string; align?: 'left' | 'right'; sortValue?: (row: T) => string | number | null; render: (row: T) => string; }`
+  - `rowKey` is **required** so the row `{#each}` never falls back to an index key (rows are re-sorted, so index keys would remount/mis-key DOM on every sort).
 
 - [ ] **Step 1: Create the component**
 
@@ -665,10 +676,12 @@ git commit -m "feat: replace Clerk UserButton with custom theme-synced user menu
 	let {
 		rows,
 		columns,
+		rowKey,
 		onRowClick
 	}: {
 		rows: T[];
 		columns: TableColumn<T>[];
+		rowKey: (row: T) => string;
 		onRowClick?: (row: T) => void;
 	} = $props();
 
@@ -730,7 +743,7 @@ git commit -m "feat: replace Clerk UserButton with custom theme-synced user menu
 			</tr>
 		</thead>
 		<tbody>
-			{#each sorted as row, i (i)}
+			{#each sorted as row (rowKey(row))}
 				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 				<tr
 					class="border-b border-border bg-surface-raised transition-colors {onRowClick
@@ -857,6 +870,7 @@ git commit -m "feat: expose card id in collection rows for identity grouping"
 Add to the existing imports:
 
 ```ts
+	import { SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/stores';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import CardTable from '$lib/components/CardTable.svelte';
@@ -920,7 +934,7 @@ After the `isDeleting`/`deleteError` state declarations, add:
 
 	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'visual'));
 	let stacksGroups = $derived(groupByCardIdentity(cards));
-	let collapsed = $state(new Set<string>());
+	let collapsed = new SvelteSet<string>();
 
 	function toggleGroup(key: string) {
 		if (collapsed.has(key)) {
@@ -943,6 +957,7 @@ Replace the entire `<div class="grid grid-cols-2 ...">...</div>` block (lines 23
 		{#if display === 'table'}
 			<CardTable
 				rows={cards}
+				rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
 				columns={[
 					{
 						key: 'name',
@@ -1036,7 +1051,7 @@ Replace the entire `<div class="grid grid-cols-2 ...">...</div>` block (lines 23
 			</div>
 		{:else}
 			<div class="space-y-2">
-				{#each stacksGroups as group, gi (gi)}
+				{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
 					{@const identity = group[0]}
 					{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
 					{@const key = groupKey(group)}
@@ -1120,9 +1135,10 @@ git commit -m "feat: add visual/table/stacks display modes to wishlist; fix spoi
 
 - [ ] **Step 1: Update script — imports**
 
-Add to the existing imports:
+Add to the existing imports (the file already has `import { SvelteMap } from 'svelte/reactivity';` — extend it):
 
 ```ts
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/stores';
 	import { getLocaleStore, t } from '$lib/i18n';
 	import CardTable from '$lib/components/CardTable.svelte';
@@ -1145,7 +1161,7 @@ After the `currentUserId`/`isSignedIn` deriveds, add:
 
 	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'stacks'));
 	let stacksGroups = $derived(groupByCardIdentity(collectionCards));
-	let collapsed = $state(new Set<string>());
+	let collapsed = new SvelteSet<string>();
 
 	function toggleGroup(key: string) {
 		if (collapsed.has(key)) {
@@ -1174,6 +1190,7 @@ Replace the `{:else if collectionCards.length > 0}` branch (lines 513-518) — t
 						<div class="max-h-[400px] overflow-y-auto pr-2">
 							<CardTable
 								rows={collectionCards}
+								rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
 								onRowClick={(card) => openCardEdit(card)}
 								columns={[
 									{ key: 'name', label: 'display.columns.name', sortValue: (c) => c.name, render: (c) => c.name },
@@ -1232,7 +1249,7 @@ Replace the `{:else if collectionCards.length > 0}` branch (lines 513-518) — t
 						</div>
 					{:else}
 						<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
-							{#each stacksGroups as group, gi (gi)}
+							{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
 								{@const identity = group[0]}
 								{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
 								{@const key = groupKey(group)}

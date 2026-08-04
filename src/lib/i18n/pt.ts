@@ -8,7 +8,9 @@ export const pt: Translations = {
 		tools: 'Ferramentas',
 		signIn: 'Entrar',
 		signOut: 'Sair',
-		inbox: 'Caixa de Entrada'
+		inbox: 'Caixa de Entrada',
+		profile: 'Perfil',
+		manageAccount: 'Gerenciar conta'
 	},
 	wants: {
 		title: 'Meus Quer',
@@ -140,6 +142,23 @@ export const pt: Translations = {
 		updated: 'Perfil atualizado!',
 		bioPlaceholder: 'Conte aos outros trocadores sobre você...',
 		locationPlaceholder: 'Ajuda a encontrar parceiros de troca locais'
+	},
+	display: {
+		stackCount: 'pilhas',
+		columns: {
+			name: 'Nome',
+			qty: 'Qtd',
+			set: 'Coleção',
+			collectorNumber: '#',
+			finish: 'Acabamento',
+			condition: 'Condição',
+			language: 'Idioma',
+			signed: 'Assinada',
+			altered: 'Alterada',
+			tradeable: 'Trocável',
+			usd: 'USD',
+			eur: 'EUR'
+		}
 	},
 	common: {
 		loading: 'Carregando...',

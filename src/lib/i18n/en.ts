@@ -6,7 +6,9 @@ export const en = {
 		tools: 'Tools',
 		signIn: 'Sign In',
 		signOut: 'Sign Out',
-		inbox: 'Inbox'
+		inbox: 'Inbox',
+		profile: 'Profile',
+		manageAccount: 'Manage account'
 	},
 	wants: {
 		title: 'My Wants',
@@ -138,6 +140,23 @@ export const en = {
 		updated: 'Profile updated!',
 		bioPlaceholder: 'Tell other traders about yourself...',
 		locationPlaceholder: 'Helps find local trade partners'
+	},
+	display: {
+		stackCount: 'stacks',
+		columns: {
+			name: 'Name',
+			qty: 'Qty',
+			set: 'Set',
+			collectorNumber: '#',
+			finish: 'Finish',
+			condition: 'Condition',
+			language: 'Language',
+			signed: 'Signed',
+			altered: 'Altered',
+			tradeable: 'Tradeable',
+			usd: 'USD',
+			eur: 'EUR'
+		}
 	},
 	common: {
 		loading: 'Loading...',

@@ -1,14 +1,11 @@
 <script lang="ts">
-	import { useClerkContext, SignInButton, UserButton } from 'svelte-clerk';
+	import { useClerkContext, SignInButton } from 'svelte-clerk';
 	import { resolve } from '$app/paths';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import LocaleToggle from './LocaleToggle.svelte';
 	import NotificationBell from './NotificationBell.svelte';
 	import { getLocaleStore, t } from '$lib/i18n';
-	import ProfileInfoPage from './ProfileInfoPage.svelte';
-	import InboxIcon from './icons/InboxIcon.svelte';
-	import ProfileIcon from './icons/ProfileIcon.svelte';
-	import { theme } from '$lib/stores/theme';
+	import UserMenu from './UserMenu.svelte';
 
 	let { data }: { data: { user?: { is_admin?: boolean | null } | null } } = $props();
 
@@ -18,29 +15,6 @@
 	let localeStore = getLocaleStore();
 	let isToolsOpen = $state(false);
 	let toolsTimer: ReturnType<typeof setTimeout> | null = null;
-
-	let isDark = $derived(
-		$theme === 'dark' ||
-			($theme === 'system' &&
-				typeof window !== 'undefined' &&
-				window.matchMedia('(prefers-color-scheme: dark)').matches)
-	);
-
-	let clerkAppearance = $derived({
-		baseTheme: isDark ? 'dark' : undefined,
-		variables: {
-			colorPrimary: isDark ? '#34d399' : '#059669',
-			colorBackground: isDark ? '#18181b' : '#ffffff',
-			colorText: isDark ? '#f4f4f5' : '#18181b',
-			colorTextSecondary: isDark ? '#a1a1aa' : '#71717a',
-			colorInputBackground: isDark ? '#27272a' : '#f4f4f5',
-			colorInputText: isDark ? '#f4f4f5' : '#18181b',
-			colorDanger: isDark ? '#f87171' : '#dc2626',
-			colorSuccess: isDark ? '#34d399' : '#059669',
-			borderRadius: '0.5rem',
-			fontFamily: 'inherit'
-		}
-	});
 
 	function openTools() {
 		if (toolsTimer) clearTimeout(toolsTimer);
@@ -73,7 +47,7 @@
 		{t($localeStore, 'nav.trades')}
 	</a>
 	<div class="relative" onmouseenter={openTools} onmouseleave={closeTools} role="none">
-		<button class="text-sm text-text-dim hover:text-text flex items-center gap-1">
+		<button class="flex items-center gap-1 text-sm text-text-dim hover:text-text">
 			{t($localeStore, 'nav.tools')}
 			<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -130,24 +104,7 @@
 	<ThemeToggle />
 	{#if isSignedIn}
 		<NotificationBell />
-		<UserButton appearance={clerkAppearance}>
-			<UserButton.MenuItems>
-				<UserButton.Link
-					label={t($localeStore, 'nav.inbox')}
-					href={resolve('/inbox')}
-					labelIcon={InboxIcon}
-				/>
-				<UserButton.Action label="manageAccount" />
-				<UserButton.Action label="signOut" />
-			</UserButton.MenuItems>
-			<UserButton.UserProfilePage
-				label={t($localeStore, 'profile.bio')}
-				url="custom"
-				labelIcon={ProfileIcon}
-			>
-				<ProfileInfoPage />
-			</UserButton.UserProfilePage>
-		</UserButton>
+		<UserMenu />
 	{:else}
 		<SignInButton
 			forceRedirectUrl="/trades"

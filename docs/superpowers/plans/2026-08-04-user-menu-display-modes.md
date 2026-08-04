@@ -388,6 +388,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 ```svelte
 <script lang="ts">
 	import { mount, unmount } from 'svelte';
+	import { get } from 'svelte/store';
 	import { resolve } from '$app/paths';
 	import { useClerkContext } from 'svelte-clerk';
 	import { getLocaleStore, t } from '$lib/i18n';
@@ -441,7 +442,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 			customPages: [
 				{
 					url: 'custom',
-					label: t(localeStore, 'profile.bio'),
+					label: t(get(localeStore), 'profile.bio'),
 					mount(el) {
 						profileApp = mount(ClerkMount, { target: el, props: { children: profilePageSnippet } });
 					},
@@ -503,7 +504,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim transition-colors hover:bg-surface-card hover:text-text"
 				>
 					<ProfileIcon />
-					{t(localeStore, 'nav.profile')}
+					{t(, 'nav.profile')}
 				</a>
 
 				<a
@@ -513,7 +514,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim transition-colors hover:bg-surface-card hover:text-text"
 				>
 					<InboxIcon />
-					{t(localeStore, 'nav.inbox')}
+					{t(, 'nav.inbox')}
 				</a>
 
 				<button
@@ -530,7 +531,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z"
 						/>
 					</svg>
-					{t(localeStore, 'nav.manageAccount')}
+					{t(, 'nav.manageAccount')}
 				</button>
 
 				<button
@@ -547,7 +548,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 							d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
 						/>
 					</svg>
-					{t(localeStore, 'nav.signOut')}
+					{t(, 'nav.signOut')}
 				</button>
 			</div>
 		{/if}
@@ -555,7 +556,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 {/if}
 ```
 
-Note: `t(localeStore, ...)` is called with the store instance — this is the same call signature used elsewhere (`HeaderNav` passes `$localeStore`; the `t` helper accepts a `Locale`). `$localeStore` auto-subscribes in runes scripts, so use `$localeStore` in the template calls below only if needed; in this component we call `t` inside handlers, so pass `$localeStore` explicitly. **Correction for the code above:** replace every `t(localeStore, ...)` with `t($localeStore, ...)`.
+Note: `t(localeStore, ...)` is called with the store instance — this is the same call signature used elsewhere (`HeaderNav` passes `$localeStore`; the `t` helper accepts a `Locale`). **Correct usage in runes mode:** in markup use `t($localeStore, ...)` (template-scope auto-subscription is valid). In `openAccount()` (an event-handler function body, a nested scope) `$localeStore` would fail to compile with `store_invalid_scoped_subscription`; there you must read the store value explicitly: import `get` from `'svelte/store'` and call `t(get(localeStore), 'profile.bio')`. **So: in the code above, template usages become `t($localeStore, ...)`; the single handler usage in `openAccount` becomes `t(get(localeStore), ...)` (with `import { get } from 'svelte/store';` added to the imports).**
 
 - [ ] **Step 3: Update `HeaderNav.svelte`**
 

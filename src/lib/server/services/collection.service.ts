@@ -9,6 +9,7 @@ import { collectionRepository as defaultRepo } from '$lib/server/repositories/co
 export interface CollectionCard {
 	id: string;
 	cardPrintingId: string;
+	cardId: string;
 	cardName: string;
 	imageUrl: string | null;
 	quantity: number;
@@ -33,13 +34,14 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 	const { data: printings } = await getSupabase()
 		.from('card_printings')
 		.select(
-			'id, image_url, set_code, collector_number, finish, language, market_price_usd, market_price_eur, cards(name)'
+			'id, image_url, set_code, collector_number, finish, language, market_price_usd, market_price_eur, cards(id, name)'
 		)
 		.in('id', printingIds);
 
 	const printingMap = new Map<
 		string,
 		{
+			cardId: string;
 			imageUrl: string | null;
 			cardName: string;
 			setCode: string | null;
@@ -59,9 +61,10 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		language: string;
 		market_price_usd: number | null;
 		market_price_eur: number | null;
-		cards: { name: string } | null;
+		cards: { id: string; name: string } | null;
 	}>) {
 		printingMap.set(p.id, {
+			cardId: p.cards?.id || '',
 			imageUrl: p.image_url || null,
 			cardName: p.cards?.name || 'Unknown',
 			setCode: p.set_code || null,
@@ -75,6 +78,7 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 
 	return cards.map((c) => {
 		const info = printingMap.get(c.card_printing_id) || {
+			cardId: '',
 			imageUrl: null,
 			cardName: 'Unknown',
 			setCode: null,
@@ -87,6 +91,7 @@ async function enrichCards(cards: UserCardRow[]): Promise<CollectionCard[]> {
 		return {
 			id: c.id,
 			cardPrintingId: c.card_printing_id,
+			cardId: info.cardId,
 			cardName: info.cardName,
 			imageUrl: info.imageUrl,
 			quantity: c.quantity,

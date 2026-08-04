@@ -68,6 +68,7 @@ export interface WishlistCard {
 	printings?: CardPrinting[];
 	selectedPrintIndex?: number;
 	cardPrintingId?: string | null;
+	cardId?: string | null;
 	set?: string;
 	collectorNumber?: string;
 	condition: CardCondition;

@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { mount, unmount } from 'svelte';
+	import { getAllContexts, mount, unmount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { resolve } from '$app/paths';
 	import { useClerkContext } from 'svelte-clerk';
 	import { getLocaleStore, t } from '$lib/i18n';
+	import { theme } from '$lib/stores/theme';
 	import ClerkMount from './ClerkMount.svelte';
 	import ProfileInfoPage from './ProfileInfoPage.svelte';
 	import ProfileIcon from './icons/ProfileIcon.svelte';
@@ -11,6 +12,30 @@
 
 	let clerkCtx = useClerkContext();
 	let localeStore = getLocaleStore();
+	let contexts = getAllContexts();
+
+	let isDark = $derived(
+		$theme === 'dark' ||
+			($theme === 'system' &&
+				typeof window !== 'undefined' &&
+				window.matchMedia('(prefers-color-scheme: dark)').matches)
+	);
+
+	let clerkAppearance = $derived({
+		baseTheme: isDark ? 'dark' : undefined,
+		variables: {
+			colorPrimary: isDark ? '#34d399' : '#059669',
+			colorBackground: isDark ? '#18181b' : '#ffffff',
+			colorText: isDark ? '#f4f4f5' : '#18181b',
+			colorTextSecondary: isDark ? '#a1a1aa' : '#71717a',
+			colorInputBackground: isDark ? '#27272a' : '#f4f4f5',
+			colorInputText: isDark ? '#f4f4f5' : '#18181b',
+			colorDanger: isDark ? '#f87171' : '#dc2626',
+			colorSuccess: isDark ? '#34d399' : '#059669',
+			borderRadius: '0.5rem',
+			fontFamily: 'inherit'
+		}
+	});
 
 	let user = $derived(clerkCtx.user);
 	let isOpen = $state(false);
@@ -51,12 +76,17 @@
 	function openAccount() {
 		close();
 		clerkCtx.clerk?.openUserProfile({
+			appearance: clerkAppearance,
 			customPages: [
 				{
 					url: 'custom',
 					label: t(get(localeStore), 'profile.bio'),
 					mount(el) {
-						profileApp = mount(ClerkMount, { target: el, props: { children: profilePageSnippet } });
+						profileApp = mount(ClerkMount, {
+							target: el,
+							props: { children: profilePageSnippet },
+							context: contexts
+						});
 					},
 					unmount() {
 						if (profileApp) {

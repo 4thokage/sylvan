@@ -31,29 +31,31 @@ Incorporates three review notes before execution:
 
 ## File Structure
 
-| File | Responsibility |
-| --- | --- |
-| `src/lib/client/display-mode.ts` (create) | `parseDisplayMode`, `normalizeName`, `groupByCardIdentity`, `formatCondition`, `formatPrice`, `priceToNumber` — pure, unit-testable |
-| `src/lib/__tests__/display-mode.test.ts` (create) | Unit tests for the above |
-| `src/lib/components/ClerkMount.svelte` (create) | Clerk-specific mount helper: renders a Svelte snippet into an element provided by Clerk (custom user-profile page). Not a generic portal — single purpose, named for its use |
-| `src/lib/components/UserMenu.svelte` (create) | Custom avatar + dropdown (Profile / Inbox / Manage account / Sign out) |
-| `src/lib/components/CardTable.svelte` (create) | Generic sortable table used by table view |
-| `src/lib/components/HeaderNav.svelte` (modify) | Swap `<UserButton>` for `<UserMenu>`, drop `clerkAppearance` |
-| `src/lib/server/services/collection.service.ts` (modify) | Enrich collection rows with `cardId` |
-| `src/lib/types.ts` (modify) | Add optional `cardId` to `WishlistCard` |
-| `src/lib/i18n/en.ts`, `src/lib/i18n/pt.ts` (modify) | `nav.profile`, `nav.manageAccount`, `display.*` strings |
-| `src/routes/[id]/+page.svelte` (modify) | Display modes + visual-spoiler fix |
-| `src/routes/collection/+page.svelte` (modify) | Display modes + `cardId` mapping |
+| File                                                     | Responsibility                                                                                                                                                               |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/lib/client/display-mode.ts` (create)                | `parseDisplayMode`, `normalizeName`, `groupByCardIdentity`, `formatCondition`, `formatPrice`, `priceToNumber` — pure, unit-testable                                          |
+| `src/lib/__tests__/display-mode.test.ts` (create)        | Unit tests for the above                                                                                                                                                     |
+| `src/lib/components/ClerkMount.svelte` (create)          | Clerk-specific mount helper: renders a Svelte snippet into an element provided by Clerk (custom user-profile page). Not a generic portal — single purpose, named for its use |
+| `src/lib/components/UserMenu.svelte` (create)            | Custom avatar + dropdown (Profile / Inbox / Manage account / Sign out)                                                                                                       |
+| `src/lib/components/CardTable.svelte` (create)           | Generic sortable table used by table view                                                                                                                                    |
+| `src/lib/components/HeaderNav.svelte` (modify)           | Swap `<UserButton>` for `<UserMenu>`, drop `clerkAppearance`                                                                                                                 |
+| `src/lib/server/services/collection.service.ts` (modify) | Enrich collection rows with `cardId`                                                                                                                                         |
+| `src/lib/types.ts` (modify)                              | Add optional `cardId` to `WishlistCard`                                                                                                                                      |
+| `src/lib/i18n/en.ts`, `src/lib/i18n/pt.ts` (modify)      | `nav.profile`, `nav.manageAccount`, `display.*` strings                                                                                                                      |
+| `src/routes/[id]/+page.svelte` (modify)                  | Display modes + visual-spoiler fix                                                                                                                                           |
+| `src/routes/collection/+page.svelte` (modify)            | Display modes + `cardId` mapping                                                                                                                                             |
 
 ---
 
 ## Task 1: Display-mode helpers + tests
 
 **Files:**
+
 - Create: `src/lib/client/display-mode.ts`
 - Test: `src/lib/__tests__/display-mode.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `export type DisplayMode = 'visual' | 'table' | 'stacks'`
   - `export function parseDisplayMode(raw: string | null | undefined, fallback: DisplayMode): DisplayMode`
@@ -253,10 +255,12 @@ git commit -m "feat: add display-mode parsing and card grouping helpers"
 ## Task 2: i18n strings
 
 **Files:**
+
 - Modify: `src/lib/i18n/en.ts`
 - Modify: `src/lib/i18n/pt.ts`
 
 **Interfaces:**
+
 - Produces (used by UserMenu, CardTable, and both pages):
   - `nav.profile`, `nav.manageAccount`
   - `display.columns.{name,qty,set,collectorNumber,finish,condition,language,signed,altered,tradeable,usd,eur}`
@@ -359,11 +363,13 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 ## Task 3: ClerkMount + UserMenu components, wire into HeaderNav
 
 **Files:**
+
 - Create: `src/lib/components/ClerkMount.svelte`
 - Create: `src/lib/components/UserMenu.svelte`
 - Modify: `src/lib/components/HeaderNav.svelte`
 
 **Interfaces:**
+
 - Consumes: `nav.profile`, `nav.manageAccount`, `nav.inbox`, `nav.signOut`, `profile.bio` i18n paths; `ProfileInfoPage.svelte` (existing); `./icons/ProfileIcon.svelte`, `./icons/InboxIcon.svelte` (existing).
 - Produces: `<UserMenu />` (no props) rendered by `HeaderNav`.
 
@@ -439,12 +445,17 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 	function openAccount() {
 		close();
 		clerkCtx.clerk?.openUserProfile({
+			appearance: clerkAppearance,
 			customPages: [
 				{
 					url: 'custom',
 					label: t(get(localeStore), 'profile.bio'),
 					mount(el) {
-						profileApp = mount(ClerkMount, { target: el, props: { children: profilePageSnippet } });
+						profileApp = mount(ClerkMount, {
+							target: el,
+							props: { children: profilePageSnippet },
+							context: contexts
+						});
 					},
 					unmount() {
 						if (profileApp) {
@@ -486,7 +497,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 		{#if isOpen}
 			<div
 				role="menu"
-				class="absolute right-0 top-full z-50 mt-2 w-64 rounded-lg border border-border-strong bg-surface-raised py-1 shadow-xl"
+				class="absolute top-full right-0 z-50 mt-2 w-64 rounded-lg border border-border-strong bg-surface-raised py-1 shadow-xl"
 			>
 				<div class="border-b border-border px-4 py-3">
 					<p class="truncate text-sm font-medium text-text">
@@ -504,7 +515,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim transition-colors hover:bg-surface-card hover:text-text"
 				>
 					<ProfileIcon />
-					{t(, 'nav.profile')}
+					{t($localeStore, 'nav.profile')}
 				</a>
 
 				<a
@@ -514,7 +525,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 					class="flex items-center gap-3 px-4 py-2 text-sm text-text-dim transition-colors hover:bg-surface-card hover:text-text"
 				>
 					<InboxIcon />
-					{t(, 'nav.inbox')}
+					{t($localeStore, 'nav.inbox')}
 				</a>
 
 				<button
@@ -531,7 +542,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z"
 						/>
 					</svg>
-					{t(, 'nav.manageAccount')}
+					{t($localeStore, 'nav.manageAccount')}
 				</button>
 
 				<button
@@ -548,7 +559,7 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 							d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
 						/>
 					</svg>
-					{t(, 'nav.signOut')}
+					{t($localeStore, 'nav.signOut')}
 				</button>
 			</div>
 		{/if}
@@ -558,33 +569,35 @@ git commit -m "feat: add i18n strings for user menu and display columns"
 
 Note: `t(localeStore, ...)` is called with the store instance — this is the same call signature used elsewhere (`HeaderNav` passes `$localeStore`; the `t` helper accepts a `Locale`). **Correct usage in runes mode:** in markup use `t($localeStore, ...)` (template-scope auto-subscription is valid). In `openAccount()` (an event-handler function body, a nested scope) `$localeStore` would fail to compile with `store_invalid_scoped_subscription`; there you must read the store value explicitly: import `get` from `'svelte/store'` and call `t(get(localeStore), 'profile.bio')`. **So: in the code above, template usages become `t($localeStore, ...)`; the single handler usage in `openAccount` becomes `t(get(localeStore), ...)` (with `import { get } from 'svelte/store';` added to the imports).**
 
+Post-review hardening (final whole-branch review): (1) `mount(ClerkMount, ...)` must receive `context: contexts` where `let contexts = getAllContexts();` is captured at component init — Clerk's custom-page `mount(el)` callback runs outside Svelte render, so without it `ProfileInfoPage`'s `useClerkContext()` throws and `getLocaleStore()` returns `undefined`; (2) `openUserProfile({ appearance: clerkAppearance, ... })` restores theme-synced theming (a `clerkAppearance` derived over the `theme` store — primary dark `#34d399` / light `#059669`), evaluated per call to avoid the stale-at-mount `UserButton` props bug.
+
 - [ ] **Step 3: Update `HeaderNav.svelte`**
 
 Replace the `<script>` block's Clerk-related lines. Current imports (lines 1-11):
 
 ```ts
-	import { useClerkContext, SignInButton, UserButton } from 'svelte-clerk';
-	import { resolve } from '$app/paths';
-	import ThemeToggle from './ThemeToggle.svelte';
-	import LocaleToggle from './LocaleToggle.svelte';
-	import NotificationBell from './NotificationBell.svelte';
-	import { getLocaleStore, t } from '$lib/i18n';
-	import ProfileInfoPage from './ProfileInfoPage.svelte';
-	import InboxIcon from './icons/InboxIcon.svelte';
-	import ProfileIcon from './icons/ProfileIcon.svelte';
-	import { theme } from '$lib/stores/theme';
+import { useClerkContext, SignInButton, UserButton } from 'svelte-clerk';
+import { resolve } from '$app/paths';
+import ThemeToggle from './ThemeToggle.svelte';
+import LocaleToggle from './LocaleToggle.svelte';
+import NotificationBell from './NotificationBell.svelte';
+import { getLocaleStore, t } from '$lib/i18n';
+import ProfileInfoPage from './ProfileInfoPage.svelte';
+import InboxIcon from './icons/InboxIcon.svelte';
+import ProfileIcon from './icons/ProfileIcon.svelte';
+import { theme } from '$lib/stores/theme';
 ```
 
 becomes:
 
 ```ts
-	import { useClerkContext, SignInButton } from 'svelte-clerk';
-	import { resolve } from '$app/paths';
-	import ThemeToggle from './ThemeToggle.svelte';
-	import LocaleToggle from './LocaleToggle.svelte';
-	import NotificationBell from './NotificationBell.svelte';
-	import { getLocaleStore, t } from '$lib/i18n';
-	import UserMenu from './UserMenu.svelte';
+import { useClerkContext, SignInButton } from 'svelte-clerk';
+import { resolve } from '$app/paths';
+import ThemeToggle from './ThemeToggle.svelte';
+import LocaleToggle from './LocaleToggle.svelte';
+import NotificationBell from './NotificationBell.svelte';
+import { getLocaleStore, t } from '$lib/i18n';
+import UserMenu from './UserMenu.svelte';
 ```
 
 Delete the `isDark` derived and the entire `clerkAppearance` derived (current lines 22-43):
@@ -649,9 +662,11 @@ git commit -m "feat: replace Clerk UserButton with custom theme-synced user menu
 ## Task 4: Generic sortable CardTable component
 
 **Files:**
+
 - Create: `src/lib/components/CardTable.svelte`
 
 **Interfaces:**
+
 - Consumes: `display.columns.*` i18n paths.
 - Produces:
   - `<CardTable rows={T[]} columns={TableColumn<T>[]} rowKey={(row: T) => string} onRowClick?={(row: T) => void} />`
@@ -781,10 +796,12 @@ git commit -m "feat: add generic sortable card table component"
 ## Task 5: Collection API cardId + WishlistCard type
 
 **Files:**
+
 - Modify: `src/lib/server/services/collection.service.ts`
 - Modify: `src/lib/types.ts`
 
 **Interfaces:**
+
 - Produces:
   - `CollectionCard.cardId: string` on the collection service interface.
   - `WishlistCard.cardId?: string | null` on the shared type.
@@ -861,9 +878,11 @@ git commit -m "feat: expose card id in collection rows for identity grouping"
 ## Task 6: Wishlist display modes + visual-spoiler fix
 
 **Files:**
+
 - Modify: `src/routes/[id]/+page.svelte`
 
 **Interfaces:**
+
 - Consumes: `parseDisplayMode`, `normalizeName`, `groupByCardIdentity`, `formatCondition`, `formatPrice`, `priceToNumber` from `$lib/client/display-mode`; `CardTable` and `TableColumn` from `$lib/components/CardTable.svelte`; `page` store from `$app/stores`; `t`/`getLocaleStore` from `$lib/i18n`; `WishlistCard.cardId`.
 
 - [ ] **Step 1: Update script — imports**
@@ -871,18 +890,18 @@ git commit -m "feat: expose card id in collection rows for identity grouping"
 Add to the existing imports:
 
 ```ts
-	import { SvelteSet } from 'svelte/reactivity';
-	import { page } from '$app/stores';
-	import { getLocaleStore, t } from '$lib/i18n';
-	import CardTable from '$lib/components/CardTable.svelte';
-	import {
-		parseDisplayMode,
-		normalizeName,
-		groupByCardIdentity,
-		formatCondition,
-		formatPrice,
-		priceToNumber
-	} from '$lib/client/display-mode';
+import { SvelteSet } from 'svelte/reactivity';
+import { page } from '$app/stores';
+import { getLocaleStore, t } from '$lib/i18n';
+import CardTable from '$lib/components/CardTable.svelte';
+import {
+	parseDisplayMode,
+	normalizeName,
+	groupByCardIdentity,
+	formatCondition,
+	formatPrice,
+	priceToNumber
+} from '$lib/client/display-mode';
 ```
 
 - [ ] **Step 2: Update script — LoadedWishlistItem + rawCards mapping**
@@ -904,26 +923,26 @@ In the `rawCards` mapping (lines 29-45), add `localId` and `cardId`:
 Replace the `cards = rawCards.map(...)` body in `onMount` (lines 97-111) so it keeps identity fields:
 
 ```ts
-				cards = rawCards.map((card) => {
-					const key = card.cardPrintingId || card.name.toLowerCase();
-					return {
-						localId: card.localId,
-						cardId: card.cardId,
-						name: card.name,
-						qty: card.qty,
-						imageUrl: imageByPrinting.get(key) || card.imageUrl,
-						manaCost: card.manaCost,
-						prices: pricesByPrinting.get(key) || card.prices,
-						cardPrintingId: card.cardPrintingId,
-						set: card.set,
-						collectorNumber: card.collectorNumber,
-						condition: card.condition,
-						finish: card.finish,
-						aftermarketSigned: card.aftermarketSigned,
-						isAltered: card.isAltered,
-						language: card.language
-					};
-				}) as WishlistCard[];
+cards = rawCards.map((card) => {
+	const key = card.cardPrintingId || card.name.toLowerCase();
+	return {
+		localId: card.localId,
+		cardId: card.cardId,
+		name: card.name,
+		qty: card.qty,
+		imageUrl: imageByPrinting.get(key) || card.imageUrl,
+		manaCost: card.manaCost,
+		prices: pricesByPrinting.get(key) || card.prices,
+		cardPrintingId: card.cardPrintingId,
+		set: card.set,
+		collectorNumber: card.collectorNumber,
+		condition: card.condition,
+		finish: card.finish,
+		aftermarketSigned: card.aftermarketSigned,
+		isAltered: card.isAltered,
+		language: card.language
+	};
+}) as WishlistCard[];
 ```
 
 - [ ] **Step 4: Update script — display state + helpers**
@@ -931,23 +950,23 @@ Replace the `cards = rawCards.map(...)` body in `onMount` (lines 97-111) so it k
 After the `isDeleting`/`deleteError` state declarations, add:
 
 ```ts
-	let localeStore = getLocaleStore();
+let localeStore = getLocaleStore();
 
-	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'visual'));
-	let stacksGroups = $derived(groupByCardIdentity(cards));
-	let collapsed = new SvelteSet<string>();
+let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'visual'));
+let stacksGroups = $derived(groupByCardIdentity(cards));
+let collapsed = new SvelteSet<string>();
 
-	function toggleGroup(key: string) {
-		if (collapsed.has(key)) {
-			collapsed.delete(key);
-		} else {
-			collapsed.add(key);
-		}
+function toggleGroup(key: string) {
+	if (collapsed.has(key)) {
+		collapsed.delete(key);
+	} else {
+		collapsed.add(key);
 	}
+}
 
-	function groupKey(group: WishlistCard[]): string {
-		return group[0].cardId ?? normalizeName(group[0].name);
-	}
+function groupKey(group: WishlistCard[]): string {
+	return group[0].cardId ?? normalizeName(group[0].name);
+}
 ```
 
 - [ ] **Step 5: Replace the card grid section**
@@ -955,155 +974,160 @@ After the `isDeleting`/`deleteError` state declarations, add:
 Replace the entire `<div class="grid grid-cols-2 ...">...</div>` block (lines 231-260) with:
 
 ```svelte
-		{#if display === 'table'}
-			<CardTable
-				rows={cards}
-				rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
-				columns={[
-					{
-						key: 'name',
-						label: 'display.columns.name',
-						sortValue: (c) => c.name,
-						render: (c) => c.name
-					},
-					{
-						key: 'qty',
-						label: 'display.columns.qty',
-						align: 'right',
-						sortValue: (c) => c.qty,
-						render: (c) => String(c.qty)
-					},
-					{
-						key: 'set',
-						label: 'display.columns.set',
-						sortValue: (c) => c.set ?? '',
-						render: (c) => (c.set ?? '').toUpperCase()
-					},
-					{
-						key: 'collectorNumber',
-						label: 'display.columns.collectorNumber',
-						sortValue: (c) => c.collectorNumber ?? '',
-						render: (c) => c.collectorNumber ?? ''
-					},
-					{
-						key: 'finish',
-						label: 'display.columns.finish',
-						sortValue: (c) => c.finish ?? '',
-						render: (c) => (c.finish && c.finish !== 'non-foil' ? c.finish : '')
-					},
-					{
-						key: 'condition',
-						label: 'display.columns.condition',
-						sortValue: (c) => c.condition,
-						render: (c) => formatCondition(c.condition)
-					},
-					{
-						key: 'language',
-						label: 'display.columns.language',
-						sortValue: (c) => c.language ?? '',
-						render: (c) => c.language ?? ''
-					},
-					{
-						key: 'usd',
-						label: 'display.columns.usd',
-						align: 'right',
-						sortValue: (c) => priceToNumber(c.prices?.usd),
-						render: (c) => formatPrice(c.prices?.usd)
-					},
-					{
-						key: 'eur',
-						label: 'display.columns.eur',
-						align: 'right',
-						sortValue: (c) => priceToNumber(c.prices?.eur),
-						render: (c) => formatPrice(c.prices?.eur, '€')
-					}
-				]}
-			/>
-		{:else if display === 'visual'}
-			<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-				{#each cards as card (card.localId)}
-					<PriceTooltip {card}>
-						<div
-							class="relative aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-raised transition-colors hover:border-border-strong"
-						>
-							{#if card.imageUrl}
-								<img
-									src={card.imageUrl}
-									alt={card.name}
-									loading="lazy"
-									class="absolute inset-0 h-full w-full object-cover transition-transform duration-200 hover:scale-105"
-								/>
-							{:else}
-								<div class="flex h-full w-full items-center justify-center bg-surface-card">
-									<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
-								</div>
-							{/if}
-							<div
-								class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
-							>
-								×{card.qty}
-							</div>
+{#if display === 'table'}
+	<CardTable
+		rows={cards}
+		rowKey={(c) => c.cardPrintingId ?? c.localId ?? c.name}
+		columns={[
+			{
+				key: 'name',
+				label: 'display.columns.name',
+				sortValue: (c) => c.name,
+				render: (c) => c.name
+			},
+			{
+				key: 'qty',
+				label: 'display.columns.qty',
+				align: 'right',
+				sortValue: (c) => c.qty,
+				render: (c) => String(c.qty)
+			},
+			{
+				key: 'set',
+				label: 'display.columns.set',
+				sortValue: (c) => c.set ?? '',
+				render: (c) => (c.set ?? '').toUpperCase()
+			},
+			{
+				key: 'collectorNumber',
+				label: 'display.columns.collectorNumber',
+				sortValue: (c) => c.collectorNumber ?? '',
+				render: (c) => c.collectorNumber ?? ''
+			},
+			{
+				key: 'finish',
+				label: 'display.columns.finish',
+				sortValue: (c) => c.finish ?? '',
+				render: (c) => (c.finish && c.finish !== 'non-foil' ? c.finish : '')
+			},
+			{
+				key: 'condition',
+				label: 'display.columns.condition',
+				sortValue: (c) => c.condition,
+				render: (c) => formatCondition(c.condition)
+			},
+			{
+				key: 'language',
+				label: 'display.columns.language',
+				sortValue: (c) => c.language ?? '',
+				render: (c) => c.language ?? ''
+			},
+			{
+				key: 'usd',
+				label: 'display.columns.usd',
+				align: 'right',
+				sortValue: (c) => priceToNumber(c.prices?.usd),
+				render: (c) => formatPrice(c.prices?.usd)
+			},
+			{
+				key: 'eur',
+				label: 'display.columns.eur',
+				align: 'right',
+				sortValue: (c) => priceToNumber(c.prices?.eur),
+				render: (c) => formatPrice(c.prices?.eur, '€')
+			}
+		]}
+	/>
+{:else if display === 'visual'}
+	<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+		{#each cards as card (card.localId)}
+			<PriceTooltip {card}>
+				<div
+					class="relative aspect-[5/7] w-full overflow-hidden rounded-lg border border-border bg-surface-raised transition-colors hover:border-border-strong"
+				>
+					{#if card.imageUrl}
+						<img
+							src={card.imageUrl}
+							alt={card.name}
+							loading="lazy"
+							class="absolute inset-0 h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+						/>
+					{:else}
+						<div class="flex h-full w-full items-center justify-center bg-surface-card">
+							<span class="px-2 text-center text-xs text-text-muted">{card.name}</span>
 						</div>
-						<div class="border-t border-border p-2">
-							<p class="truncate text-xs text-text-soft">{card.name}</p>
-						</div>
-					</PriceTooltip>
-				{/each}
-			</div>
-		{:else}
-			<div class="space-y-2">
-				{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
-					{@const identity = group[0]}
-					{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
-					{@const key = groupKey(group)}
-					<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
-						<button
-							type="button"
-							onclick={() => toggleGroup(key)}
-							class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
-						>
-							{#if identity.imageUrl}
-								<img
-									src={identity.imageUrl}
-									alt=""
-									class="h-12 w-8 rounded object-cover"
-									loading="lazy"
-								/>
-							{:else}
-								<div
-									class="flex h-12 w-8 items-center justify-center rounded bg-surface-card text-[8px] text-text-muted"
-								>
-									?
-								</div>
-							{/if}
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-sm font-medium text-text-soft">{identity.name}</p>
-								<p class="text-xs text-text-muted">
-									{group.length} {t($localeStore, 'wants.cards')} · ×{totalQty}
-								</p>
-							</div>
-							<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
-						</button>
-						{#if !collapsed.has(key)}
-							<div class="divide-y divide-border border-t border-border">
-								{#each group as card (card.localId)}
-									<div
-										class="flex items-center justify-between gap-3 px-4 py-2 text-xs text-text-dim"
-									>
-										<span class="min-w-0 truncate">
-											{[card.set?.toUpperCase(), card.collectorNumber, card.finish, formatCondition(card.condition), card.language]
-												.filter(Boolean)
-												.join(' · ')}
-										</span>
-										<span class="font-medium text-text">×{card.qty}</span>
-									</div>
-								{/each}
-							</div>
-						{/if}
+					{/if}
+					<div
+						class="absolute top-2 right-2 rounded bg-surface/90 px-2 py-0.5 text-xs font-bold text-text"
+					>
+						×{card.qty}
 					</div>
-				{/each}
+				</div>
+				<div class="border-t border-border p-2">
+					<p class="truncate text-xs text-text-soft">{card.name}</p>
+				</div>
+			</PriceTooltip>
+		{/each}
+	</div>
+{:else}
+	<div class="space-y-2">
+		{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
+			{@const identity = group[0]}
+			{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
+			{@const key = groupKey(group)}
+			<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
+				<button
+					type="button"
+					onclick={() => toggleGroup(key)}
+					class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
+				>
+					{#if identity.imageUrl}
+						<img
+							src={identity.imageUrl}
+							alt=""
+							class="h-12 w-8 rounded object-cover"
+							loading="lazy"
+						/>
+					{:else}
+						<div
+							class="flex h-12 w-8 items-center justify-center rounded bg-surface-card text-[8px] text-text-muted"
+						>
+							?
+						</div>
+					{/if}
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-medium text-text-soft">{identity.name}</p>
+						<p class="text-xs text-text-muted">
+							{group.length}
+							{t($localeStore, 'wants.cards')} · ×{totalQty}
+						</p>
+					</div>
+					<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
+				</button>
+				{#if !collapsed.has(key)}
+					<div class="divide-y divide-border border-t border-border">
+						{#each group as card (card.localId)}
+							<div class="flex items-center justify-between gap-3 px-4 py-2 text-xs text-text-dim">
+								<span class="min-w-0 truncate">
+									{[
+										card.set?.toUpperCase(),
+										card.collectorNumber,
+										card.finish,
+										formatCondition(card.condition),
+										card.language
+									]
+										.filter(Boolean)
+										.join(' · ')}
+								</span>
+								<span class="font-medium text-text">×{card.qty}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
-		{/if}
+		{/each}
+	</div>
+{/if}
 ```
 
 - [ ] **Step 6: Typecheck**
@@ -1129,9 +1153,11 @@ git commit -m "feat: add visual/table/stacks display modes to wishlist; fix spoi
 ## Task 7: Collection display modes
 
 **Files:**
+
 - Modify: `src/routes/collection/+page.svelte`
 
 **Interfaces:**
+
 - Consumes: `parseDisplayMode`, `normalizeName`, `groupByCardIdentity`, `formatCondition`, `formatPrice`, `priceToNumber` from `$lib/client/display-mode`; `CardTable` from `$lib/components/CardTable.svelte`; `page` store from `$app/stores`; `t`/`getLocaleStore` from `$lib/i18n`; `display.stackCount` i18n path; `CollectionCard.cardId` from the API.
 
 - [ ] **Step 1: Update script — imports**
@@ -1139,18 +1165,18 @@ git commit -m "feat: add visual/table/stacks display modes to wishlist; fix spoi
 Add to the existing imports (the file already has `import { SvelteMap } from 'svelte/reactivity';` — extend it):
 
 ```ts
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { page } from '$app/stores';
-	import { getLocaleStore, t } from '$lib/i18n';
-	import CardTable from '$lib/components/CardTable.svelte';
-	import {
-		parseDisplayMode,
-		normalizeName,
-		groupByCardIdentity,
-		formatCondition,
-		formatPrice,
-		priceToNumber
-	} from '$lib/client/display-mode';
+import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { page } from '$app/stores';
+import { getLocaleStore, t } from '$lib/i18n';
+import CardTable from '$lib/components/CardTable.svelte';
+import {
+	parseDisplayMode,
+	normalizeName,
+	groupByCardIdentity,
+	formatCondition,
+	formatPrice,
+	priceToNumber
+} from '$lib/client/display-mode';
 ```
 
 - [ ] **Step 2: Update script — display state + helpers**
@@ -1158,23 +1184,23 @@ Add to the existing imports (the file already has `import { SvelteMap } from 'sv
 After the `currentUserId`/`isSignedIn` deriveds, add:
 
 ```ts
-	let localeStore = getLocaleStore();
+let localeStore = getLocaleStore();
 
-	let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'stacks'));
-	let stacksGroups = $derived(groupByCardIdentity(collectionCards));
-	let collapsed = new SvelteSet<string>();
+let display = $derived(parseDisplayMode($page.url.searchParams.get('display'), 'stacks'));
+let stacksGroups = $derived(groupByCardIdentity(collectionCards));
+let collapsed = new SvelteSet<string>();
 
-	function toggleGroup(key: string) {
-		if (collapsed.has(key)) {
-			collapsed.delete(key);
-		} else {
-			collapsed.add(key);
-		}
+function toggleGroup(key: string) {
+	if (collapsed.has(key)) {
+		collapsed.delete(key);
+	} else {
+		collapsed.add(key);
 	}
+}
 
-	function groupKey(group: WishlistCard[]): string {
-		return group[0].cardId ?? normalizeName(group[0].name);
-	}
+function groupKey(group: WishlistCard[]): string {
+	return group[0].cardId ?? normalizeName(group[0].name);
+}
 ```
 
 - [ ] **Step 3: Update `loadCollection` mapping — carry `cardId`**
@@ -1344,6 +1370,7 @@ Expected: PASS (Prettier check + ESLint). If Prettier reports formatting drift, 
 
 Run: `pnpm dev`
 Verify:
+
 - Signed in: header shows the custom avatar; dropdown lists Profile / Inbox / Manage account / Sign out with no Clerk branding; dropdown follows the theme toggle immediately.
 - `/collection?display=table`, `?display=visual`, `?display=stacks` render the three modes; sorting works; visual grid cells are equal size and nothing overlaps on hover.
 - `/<wishlistId>?display=visual|table|stacks` same for wishlists; duplicate-name cards render separately (no overlap).

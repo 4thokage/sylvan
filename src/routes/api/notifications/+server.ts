@@ -7,7 +7,7 @@ export const GET: RequestHandler = async (event) => {
 	const authUser = await requireUser(event);
 	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { data: notifications } = await 	getServiceSupabase()
+	const { data: notifications } = await getServiceSupabase()
 		.from('notifications')
 		.select('*')
 		.eq('user_id', authUser.dbUserId)
@@ -26,7 +26,7 @@ export const PATCH: RequestHandler = async (event) => {
 	const authUser = await requireUser(event);
 	if (!('clerkUserId' in authUser)) return authUser;
 
-	const { error } = await 	getServiceSupabase()
+	const { error } = await getServiceSupabase()
 		.from('notifications')
 		.update({ read_at: new Date().toISOString() })
 		.eq('user_id', authUser.dbUserId)

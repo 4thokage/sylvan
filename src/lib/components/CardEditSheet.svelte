@@ -198,7 +198,7 @@
 										{/if}
 									</div>
 									<div class="mt-1 px-1">
-										<p class="text-[10px] font-medium uppercase text-text-soft">
+										<p class="text-[10px] font-medium text-text-soft uppercase">
 											{print.setCode}
 										</p>
 										<p class="text-[10px] text-text-muted">#{print.collectorNumber}</p>
@@ -234,7 +234,7 @@
 					<button
 						type="button"
 						class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {aftermarketSigned
-							? 'bg-accent-bg/10 text-accent border-accent'
+							? 'border-accent bg-accent-bg/10 text-accent'
 							: 'text-text-dim hover:bg-surface-card'}"
 						onclick={() => (aftermarketSigned = !aftermarketSigned)}
 					>
@@ -260,7 +260,7 @@
 					<button
 						type="button"
 						class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {isAltered
-							? 'bg-accent-bg/10 text-accent border-accent'
+							? 'border-accent bg-accent-bg/10 text-accent'
 							: 'text-text-dim hover:bg-surface-card'}"
 						onclick={() => (isAltered = !isAltered)}
 					>
@@ -287,7 +287,7 @@
 						<button
 							type="button"
 							class="flex items-center justify-between rounded-lg border border-border-strong p-3 text-sm transition-colors {isTradeable
-								? 'bg-accent-bg/10 text-accent border-accent'
+								? 'border-accent bg-accent-bg/10 text-accent'
 								: 'text-text-dim hover:bg-surface-card'}"
 							onclick={() => (isTradeable = !isTradeable)}
 						>

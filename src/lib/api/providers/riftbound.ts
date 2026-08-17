@@ -131,7 +131,6 @@ export const riftboundProvider: TcgProvider = {
 		return this.getCard(name);
 	},
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getCard(name: string, _set?: string, _collectorNumber?: string): Promise<TcgCard | null> {
 		const response = await providerLimiters.riftbound({
 			url: `${API_BASE}/cards/name?fuzzy=${encodeURIComponent(name)}`,
@@ -155,7 +154,6 @@ export const riftboundProvider: TcgProvider = {
 		return cards;
 	},
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	async getAllPrintings(_cardName: string): Promise<TcgPrinting[]> {
 		return [];
 	}

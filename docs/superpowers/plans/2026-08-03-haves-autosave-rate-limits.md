@@ -25,10 +25,12 @@
 ### Task 1: Outbound provider request limiter
 
 **Files:**
+
 - Create: `src/lib/api/providers/request.ts`
 - Test: `src/lib/__tests__/provider-request.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `class ProviderRequestError extends Error` with `readonly provider: string` and `readonly status: number | null`.
   - `createProviderLimiter(provider: string, config: ProviderLimiterConfig, deps?: ProviderLimiterDeps)` returns a `request` function typed `(opts: ProviderRequestOptions) => Promise<Response>` that also carries `withSlot<T>(fn: () => Promise<T>): Promise<T>`.
@@ -40,10 +42,7 @@ Create `src/lib/__tests__/provider-request.test.ts`:
 
 ```ts
 import { describe, it, expect, vi } from 'vitest';
-import {
-	createProviderLimiter,
-	ProviderRequestError
-} from '../api/providers/request';
+import { createProviderLimiter, ProviderRequestError } from '../api/providers/request';
 
 function mockResponse(status: number, headers: Record<string, string> = {}): Response {
 	return {
@@ -230,8 +229,7 @@ export function createProviderLimiter(
 ) {
 	const { maxRetries, timeoutMs } = config;
 	const retryable = config.retryableStatuses ?? DEFAULT_RETRYABLE;
-	const fetchImpl =
-		deps.fetchImpl ?? ((input: string, init: RequestInit) => fetch(input, init));
+	const fetchImpl = deps.fetchImpl ?? ((input: string, init: RequestInit) => fetch(input, init));
 	const now = deps.now ?? Date.now;
 	const sleep =
 		deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
@@ -275,11 +273,7 @@ export function createProviderLimiter(
 					sleep(timeoutMs).then(() => {
 						if (!settled) {
 							timedOut = true;
-							throw new ProviderRequestError(
-								provider,
-								null,
-								`${provider} request timed out`
-							);
+							throw new ProviderRequestError(provider, null, `${provider} request timed out`);
 						}
 					})
 				]);
@@ -298,11 +292,7 @@ export function createProviderLimiter(
 			}
 			if (attempt > maxRetries) {
 				if (timedOut) {
-					throw new ProviderRequestError(
-						provider,
-						null,
-						`${provider} request timed out`
-					);
+					throw new ProviderRequestError(provider, null, `${provider} request timed out`);
 				}
 				throw new ProviderRequestError(
 					provider,
@@ -372,9 +362,11 @@ git commit -m "feat: add per-provider outbound request limiter with retry/backof
 ### Task 2: Route Scryfall provider through the limiter
 
 **Files:**
+
 - Modify: `src/lib/api/providers/scryfall.ts`
 
 **Interfaces:**
+
 - Consumes: `providerLimiters.scryfall` from `./request` (Task 1), used as `await providerLimiters.scryfall({ url, method?, headers?, body? })` returning `Promise<Response>` (throws `ProviderRequestError` after retries).
 
 - [ ] **Step 1: Update the file**
@@ -426,10 +418,10 @@ async function delay(ms: number) {
 `getCard` (lines 234–249) — replace the fetch preamble (keep the URL-building lines above it):
 
 ```ts
-		const response = await providerLimiters.scryfall({
-			url,
-			headers: HEADERS
-		});
+const response = await providerLimiters.scryfall({
+	url,
+	headers: HEADERS
+});
 ```
 
 `getCardsByIdentifiers` (lines 251–286) — replace the loop body:
@@ -503,10 +495,12 @@ git commit -m "refactor: route scryfall provider through outbound request limite
 ### Task 3: Route Riftbound provider through the limiter and stop swallowing errors
 
 **Files:**
+
 - Modify: `src/lib/api/providers/riftbound.ts`
 - Modify: `src/lib/__tests__/riftbound.test.ts`
 
 **Interfaces:**
+
 - Consumes: `providerLimiters.riftbound` from `./request` (Task 1).
 - Note: Riftbound tests share one module-level limiter; with a 250ms min gap, test 2+ each incur ~250ms real time. Accept this (~2s total in the file). Update the mock to include `status` and `headers` for realism.
 
@@ -597,9 +591,11 @@ git commit -m "refactor: route riftbound provider through limiter, stop swallowi
 ### Task 4: Pace TCGdex provider calls
 
 **Files:**
+
 - Modify: `src/lib/api/providers/pokemon.ts`
 
 **Interfaces:**
+
 - Consumes: `providerLimiters.tcgdex.withSlot<T>(fn)` from `./request` (Task 1). The TCGdex SDK's internal HTTP is not interceptable; pacing the outer logical calls bounds request rate.
 
 - [ ] **Step 1: Update the file**
@@ -625,54 +621,54 @@ Wrap each SDK call site:
 In `searchCards` (lines 140–157):
 
 ```ts
-		const results = await paced(() => tcgdex.card.list(q));
-		const cards: TcgCard[] = [];
-		for (const r of results.slice(0, limit)) {
-			const full = await paced(() => getFullCard(r));
-			for (const card of splitFinishes(full)) {
-				cards.push(card);
-			}
-		}
+const results = await paced(() => tcgdex.card.list(q));
+const cards: TcgCard[] = [];
+for (const r of results.slice(0, limit)) {
+	const full = await paced(() => getFullCard(r));
+	for (const card of splitFinishes(full)) {
+		cards.push(card);
+	}
+}
 ```
 
 In `getCard` (lines 163–183):
 
 ```ts
-		if (set && collectorNumber) {
-			const id = `${set.toLowerCase()}-${collectorNumber}`;
-			const card = await paced(() => tcgdex.card.get(id));
-			if (card) {
-				const full = await paced(() => getFullCard(card));
-				const variants = Array.from(splitFinishes(full));
-				return variants[0] || null;
-			}
-		}
-		let q = Query.create().equal('name', name).paginate(1, 1);
-		let results = await paced(() => tcgdex.card.list(q));
-		if (results.length === 0) {
-			q = Query.create().contains('name', name).paginate(1, 1);
-			results = await paced(() => tcgdex.card.list(q));
-		}
-		if (results.length === 0) return null;
-		const full = await paced(() => getFullCard(results[0]));
+if (set && collectorNumber) {
+	const id = `${set.toLowerCase()}-${collectorNumber}`;
+	const card = await paced(() => tcgdex.card.get(id));
+	if (card) {
+		const full = await paced(() => getFullCard(card));
+		const variants = Array.from(splitFinishes(full));
+		return variants[0] || null;
+	}
+}
+let q = Query.create().equal('name', name).paginate(1, 1);
+let results = await paced(() => tcgdex.card.list(q));
+if (results.length === 0) {
+	q = Query.create().contains('name', name).paginate(1, 1);
+	results = await paced(() => tcgdex.card.list(q));
+}
+if (results.length === 0) return null;
+const full = await paced(() => getFullCard(results[0]));
 ```
 
 In `getAllPrintings` (lines 196–211):
 
 ```ts
-		let q = Query.create().equal('name', cardName).sort('set.releaseDate', 'DESC');
-		let results = await paced(() => tcgdex.card.list(q));
-		if (results.length === 0) {
-			q = Query.create().contains('name', cardName).sort('set.releaseDate', 'DESC');
-			results = await paced(() => tcgdex.card.list(q));
-		}
-		const printings: TcgPrinting[] = [];
-		for (const r of results) {
-			const full = await paced(() => getFullCard(r));
-			for (const printing of splitPrintings(full)) {
-				printings.push(printing);
-			}
-		}
+let q = Query.create().equal('name', cardName).sort('set.releaseDate', 'DESC');
+let results = await paced(() => tcgdex.card.list(q));
+if (results.length === 0) {
+	q = Query.create().contains('name', cardName).sort('set.releaseDate', 'DESC');
+	results = await paced(() => tcgdex.card.list(q));
+}
+const printings: TcgPrinting[] = [];
+for (const r of results) {
+	const full = await paced(() => getFullCard(r));
+	for (const printing of splitPrintings(full)) {
+		printings.push(printing);
+	}
+}
 ```
 
 - [ ] **Step 2: Verify**
@@ -695,10 +691,12 @@ git commit -m "refactor: pace tcgdex provider calls through outbound request lim
 ### Task 5: Inbound rate limiter per-user keying and dedicated budgets
 
 **Files:**
+
 - Modify: `src/lib/server/middleware/rate-limit.ts`
 - Modify: `src/lib/__tests__/rate-limit.test.ts`
 
 **Interfaces:**
+
 - Produces: limiter functions keep the signature `(event: RequestEvent, userKey?: string | null) => { passed, remaining, resetAt }`. New exports: `lookupRateLimiter`, `collectionSaveRateLimiter`. `authRateLimiter` is removed.
 
 - [ ] **Step 1: Update the limiter**
@@ -746,19 +744,19 @@ Expected: `no references`.
 Append to `src/lib/__tests__/rate-limit.test.ts` inside the existing `describe('createRateLimiter', ...)` block:
 
 ```ts
-	it('keys by user id when provided', () => {
-		const limiter = createRateLimiter('testUser', { windowMs: 60000, maxRequests: 2 });
-		expect(limiter(mockRequest('1.1.1.1'), 'user-a').passed).toBe(true);
-		expect(limiter(mockRequest('2.2.2.2'), 'user-a').passed).toBe(true);
-		expect(limiter(mockRequest('3.3.3.3'), 'user-a').passed).toBe(false);
-		expect(limiter(mockRequest('1.1.1.1'), 'user-b').passed).toBe(true);
-	});
+it('keys by user id when provided', () => {
+	const limiter = createRateLimiter('testUser', { windowMs: 60000, maxRequests: 2 });
+	expect(limiter(mockRequest('1.1.1.1'), 'user-a').passed).toBe(true);
+	expect(limiter(mockRequest('2.2.2.2'), 'user-a').passed).toBe(true);
+	expect(limiter(mockRequest('3.3.3.3'), 'user-a').passed).toBe(false);
+	expect(limiter(mockRequest('1.1.1.1'), 'user-b').passed).toBe(true);
+});
 
-	it('falls back to IP when no user id', () => {
-		const limiter = createRateLimiter('testAnon', { windowMs: 60000, maxRequests: 1 });
-		expect(limiter(mockRequest('1.1.1.1')).passed).toBe(true);
-		expect(limiter(mockRequest('1.1.1.1')).passed).toBe(false);
-	});
+it('falls back to IP when no user id', () => {
+	const limiter = createRateLimiter('testAnon', { windowMs: 60000, maxRequests: 1 });
+	expect(limiter(mockRequest('1.1.1.1')).passed).toBe(true);
+	expect(limiter(mockRequest('1.1.1.1')).passed).toBe(false);
+});
 ```
 
 - [ ] **Step 3: Verify**
@@ -778,6 +776,7 @@ git commit -m "feat: per-user inbound rate-limit keying and dedicated lookup/col
 ### Task 6: Apply new limiters to API routes
 
 **Files:**
+
 - Modify: `src/routes/api/collection/+server.ts`
 - Modify: `src/routes/api/block/+server.ts`
 - Modify: `src/routes/api/cards/lookup/+server.ts`
@@ -785,11 +784,13 @@ git commit -m "feat: per-user inbound rate-limit keying and dedicated lookup/col
 - Modify: `src/routes/api/import/+server.ts`
 
 **Interfaces:**
+
 - Consumes: `lookupRateLimiter`, `collectionSaveRateLimiter` from Task 5; existing `saveRateLimiter` now accepts `(event, userKey)`.
 
 - [ ] **Step 1: Collection POST → dedicated limiter, per-user key**
 
 In `src/routes/api/collection/+server.ts`:
+
 - Remove line 2 (`import type { RequestEvent } from '@sveltejs/kit';`).
 - Change the import on line 4 to:
 
@@ -800,19 +801,20 @@ import { collectionSaveRateLimiter, rateLimitResponse } from '$lib/server/middle
 - Replace lines 101–105 with:
 
 ```ts
-	const rateCheck = collectionSaveRateLimiter(event, clerkUserId);
-	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
+const rateCheck = collectionSaveRateLimiter(event, clerkUserId);
+if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 ```
 
 - [ ] **Step 2: Block POST → per-user key**
 
 In `src/routes/api/block/+server.ts`:
+
 - Remove line 2 (`import type { RequestEvent } from '@sveltejs/kit';`).
 - Replace lines 39–43 with:
 
 ```ts
-	const rateCheck = apiRateLimiter(event, clerkUserId);
-	if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
+const rateCheck = apiRateLimiter(event, clerkUserId);
+if (!rateCheck.passed) return rateLimitResponse(rateCheck.remaining, rateCheck.resetAt);
 ```
 
 - [ ] **Step 3: Lookup and prices → dedicated lookup limiter**
@@ -826,7 +828,7 @@ import { lookupRateLimiter, rateLimitResponse } from '$lib/server/middleware/rat
 and line 9 to:
 
 ```ts
-	const rateCheck = lookupRateLimiter(event);
+const rateCheck = lookupRateLimiter(event);
 ```
 
 In `src/routes/api/prices/+server.ts`, change line 4 to:
@@ -838,7 +840,7 @@ import { lookupRateLimiter, rateLimitResponse } from '$lib/server/middleware/rat
 and line 9 to:
 
 ```ts
-	const rateCheck = lookupRateLimiter(event);
+const rateCheck = lookupRateLimiter(event);
 ```
 
 - [ ] **Step 4: Import → per-user key**
@@ -846,7 +848,7 @@ and line 9 to:
 In `src/routes/api/import/+server.ts`, change line 15 to:
 
 ```ts
-	const rateCheck = saveRateLimiter(event, clerkUserId);
+const rateCheck = saveRateLimiter(event, clerkUserId);
 ```
 
 - [ ] **Step 5: Verify**
@@ -869,10 +871,12 @@ git commit -m "feat: apply per-user and dedicated rate limits to collection, loo
 ### Task 7: Autosave controller
 
 **Files:**
+
 - Create: `src/lib/client/autosave.ts`
 - Test: `src/lib/__tests__/autosave.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error'`
   - `interface AutosaveState { status: AutosaveStatus; error: string | null }`
@@ -930,14 +934,12 @@ describe('createAutosave', () => {
 
 	it('serializes saves and sends a follow-up when edits arrive mid-save', async () => {
 		let resolveSave!: () => void;
-		const persist = vi
-			.fn()
-			.mockImplementation(
-				(snapshot: unknown) =>
-					new Promise<void>((resolve) => {
-						resolveSave = () => resolve();
-					}) && Promise.resolve()
-			);
+		const persist = vi.fn().mockImplementation(
+			(snapshot: unknown) =>
+				new Promise<void>((resolve) => {
+					resolveSave = () => resolve();
+				}) && Promise.resolve()
+		);
 		const autosave = createAutosave({ debounceMs: 20, persist, flushTarget: null });
 		autosave.markDirty([{ name: 'A' }]);
 		await flush(40);
@@ -952,10 +954,7 @@ describe('createAutosave', () => {
 	});
 
 	it('reports errors and retries on the next edit', async () => {
-		const persist = vi
-			.fn()
-			.mockRejectedValueOnce(new Error('boom'))
-			.mockResolvedValue(undefined);
+		const persist = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(undefined);
 		const states: string[] = [];
 		const autosave = createAutosave({
 			debounceMs: 20,
@@ -1018,12 +1017,12 @@ describe('createAutosave', () => {
 Note: the mid-save test's `persist` mock uses an awkward `&&` expression to return a promise and capture the resolver; replace it with the clearer form:
 
 ```ts
-		const persist = vi.fn().mockImplementation(
-			() =>
-				new Promise<void>((resolve) => {
-					resolveSave = () => resolve();
-				})
-		);
+const persist = vi.fn().mockImplementation(
+	() =>
+		new Promise<void>((resolve) => {
+			resolveSave = () => resolve();
+		})
+);
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1190,11 +1189,13 @@ git commit -m "feat: add debounced autosave controller with latest-wins serializ
 ### Task 8: Wire autosave into the collection page and i18n
 
 **Files:**
+
 - Modify: `src/routes/collection/+page.svelte`
 - Modify: `src/lib/i18n/en.ts`
 - Modify: `src/lib/i18n/pt.ts`
 
 **Interfaces:**
+
 - Consumes: `createAutosave`, `AutosaveState`, `AutosaveHandle` from Task 7; `collectionSaveRateLimiter` on the server (Task 6) is already wired.
 
 - [ ] **Step 1: Add i18n strings**
@@ -1236,148 +1237,148 @@ In `src/routes/collection/+page.svelte`:
 Add imports after line 7:
 
 ```ts
-	import { createAutosave } from '$lib/client/autosave';
-	import type { AutosaveHandle, AutosaveState } from '$lib/client/autosave';
+import { createAutosave } from '$lib/client/autosave';
+import type { AutosaveHandle, AutosaveState } from '$lib/client/autosave';
 ```
 
 Replace the state block (lines 9–17) so `isSaving` becomes autosave state:
 
 ```ts
-	let input = $state('');
-	let collectionCards = $state<WishlistCard[]>([]);
-	let isLoading = $state(false);
-	let isLoadingCollection = $state(true);
-	let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
-	let autosave = $state<AutosaveHandle | null>(null);
-	let autosaveState = $state<AutosaveState>({ status: 'idle', error: null });
-	let selectedGame = $state('mtg');
-	let selectedCard = $state<WishlistCard | null>(null);
-	let isDrawerOpen = $state(false);
+let input = $state('');
+let collectionCards = $state<WishlistCard[]>([]);
+let isLoading = $state(false);
+let isLoadingCollection = $state(true);
+let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
+let autosave = $state<AutosaveHandle | null>(null);
+let autosaveState = $state<AutosaveState>({ status: 'idle', error: null });
+let selectedGame = $state('mtg');
+let selectedCard = $state<WishlistCard | null>(null);
+let isDrawerOpen = $state(false);
 ```
 
 Replace the `saveCollection` function (lines 132–181) with:
 
 ```ts
-	function cardToSavePayload(card: WishlistCard) {
-		return {
-			name: card.name,
-			qty: card.qty,
-			cardPrintingId: card.cardPrintingId || null,
-			set: card.set,
-			collector_number: card.collectorNumber,
-			condition: card.condition,
-			finish: card.finish,
-			aftermarketSigned: card.aftermarketSigned,
-			isAltered: card.isAltered,
-			isTradeable: card.isTradeable,
-			language: card.language,
-			location: null,
-			notes: null
-		};
-	}
+function cardToSavePayload(card: WishlistCard) {
+	return {
+		name: card.name,
+		qty: card.qty,
+		cardPrintingId: card.cardPrintingId || null,
+		set: card.set,
+		collector_number: card.collectorNumber,
+		condition: card.condition,
+		finish: card.finish,
+		aftermarketSigned: card.aftermarketSigned,
+		isAltered: card.isAltered,
+		isTradeable: card.isTradeable,
+		language: card.language,
+		location: null,
+		notes: null
+	};
+}
 
-	async function persistCollection(snapshot: WishlistCard[], game: string) {
-		if (!currentUserId) return;
-		const response = await fetch('/api/collection', {
-			method: 'POST',
-			keepalive: true,
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ cards: snapshot.map(cardToSavePayload), gameSlug: game })
-		});
-		const result = await response.json();
-		if (!result.success) {
-			throw new Error(result.error?.message || 'Failed to save');
-		}
-		const errors: string[] = result.data?.errors || [];
-		if (errors.length > 0) {
-			message = {
-				type: 'error',
-				text: `Saved, but ${errors.length} card(s) could not be resolved: ${errors
-					.slice(0, 3)
-					.join(', ')}${errors.length > 3 ? '…' : ''}`
-			};
-		}
-	}
-
-	$effect(() => {
-		if (!isSignedIn) {
-			autosave?.dispose();
-			autosave = null;
-			return;
-		}
-		if (!autosave) {
-			autosave = createAutosave({
-				debounceMs: 2000,
-				persist: (snapshot) => persistCollection(snapshot as WishlistCard[], selectedGame),
-				onState: (s) => {
-					autosaveState = s;
-				}
-			});
-		}
-		return () => {
-			autosave?.dispose();
-			autosave = null;
-		};
+async function persistCollection(snapshot: WishlistCard[], game: string) {
+	if (!currentUserId) return;
+	const response = await fetch('/api/collection', {
+		method: 'POST',
+		keepalive: true,
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ cards: snapshot.map(cardToSavePayload), gameSlug: game })
 	});
+	const result = await response.json();
+	if (!result.success) {
+		throw new Error(result.error?.message || 'Failed to save');
+	}
+	const errors: string[] = result.data?.errors || [];
+	if (errors.length > 0) {
+		message = {
+			type: 'error',
+			text: `Saved, but ${errors.length} card(s) could not be resolved: ${errors
+				.slice(0, 3)
+				.join(', ')}${errors.length > 3 ? '…' : ''}`
+		};
+	}
+}
+
+$effect(() => {
+	if (!isSignedIn) {
+		autosave?.dispose();
+		autosave = null;
+		return;
+	}
+	if (!autosave) {
+		autosave = createAutosave({
+			debounceMs: 2000,
+			persist: (snapshot) => persistCollection(snapshot as WishlistCard[], selectedGame),
+			onState: (s) => {
+				autosaveState = s;
+			}
+		});
+	}
+	return () => {
+		autosave?.dispose();
+		autosave = null;
+	};
+});
 ```
 
 Replace `clearCollection` (lines 183–193) to cancel pending autosave before the DELETE:
 
 ```ts
-	async function clearCollection() {
-		autosave?.cancelPending();
-		try {
-			await fetch(`/api/collection?game=${selectedGame}`, { method: 'DELETE' });
-			collectionCards = [];
-			input = '';
-			message = { type: 'success', text: 'Collection cleared!' };
-			setTimeout(() => (message = null), 3000);
-		} catch {
-			message = { type: 'error', text: 'Failed to clear collection' };
-		}
+async function clearCollection() {
+	autosave?.cancelPending();
+	try {
+		await fetch(`/api/collection?game=${selectedGame}`, { method: 'DELETE' });
+		collectionCards = [];
+		input = '';
+		message = { type: 'success', text: 'Collection cleared!' };
+		setTimeout(() => (message = null), 3000);
+	} catch {
+		message = { type: 'error', text: 'Failed to clear collection' };
 	}
+}
 ```
 
 In `handleAdd`, after `collectionCards = Array.from(existingMap.values());` (line 247), add:
 
 ```ts
-			autosave?.markDirty(collectionCards);
+autosave?.markDirty(collectionCards);
 ```
 
 In `addCardFromSearch` (lines 268–278), at the end of the function body (after the `setTimeout` line), add:
 
 ```ts
-		autosave?.markDirty(collectionCards);
+autosave?.markDirty(collectionCards);
 ```
 
 In `handleSaveCard` (lines 310–314), after `collectionCards = collectionCards.map(...)`, add:
 
 ```ts
-		autosave?.markDirty(collectionCards);
+autosave?.markDirty(collectionCards);
 ```
 
 In `handleRemoveCard` (lines 316–321), after `collectionCards = collectionCards.filter(...)`, add:
 
 ```ts
-		autosave?.markDirty(collectionCards);
+autosave?.markDirty(collectionCards);
 ```
 
 Replace `switchGame` (lines 323–330) to flush and cancel before switching:
 
 ```ts
-	async function switchGame(game: string) {
-		if (game === selectedGame) return;
-		if (autosave) {
-			await autosave.flushNow();
-			autosave.cancelPending();
-		}
-		selectedGame = game;
-		collectionCards = [];
-		isLoadingCollection = true;
-		if (isSignedIn) {
-			await loadCollection();
-		}
+async function switchGame(game: string) {
+	if (game === selectedGame) return;
+	if (autosave) {
+		await autosave.flushNow();
+		autosave.cancelPending();
 	}
+	selectedGame = game;
+	collectionCards = [];
+	isLoadingCollection = true;
+	if (isSignedIn) {
+		await loadCollection();
+	}
+}
 ```
 
 - [ ] **Step 3: Replace the Save button with a status pill**
@@ -1385,41 +1386,39 @@ Replace `switchGame` (lines 323–330) to flush and cancel before switching:
 In the markup (lines 373–379), replace:
 
 ```svelte
-				<button
-					onclick={saveCollection}
-					disabled={isSaving || collectionCards.length === 0}
-					class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
-				>
-					{isSaving ? t($localeStore, 'haves.saving') : t($localeStore, 'haves.save')}
-				</button>
+<button
+	onclick={saveCollection}
+	disabled={isSaving || collectionCards.length === 0}
+	class="rounded-lg bg-accent-bg px-6 py-2 font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-hover"
+>
+	{isSaving ? t($localeStore, 'haves.saving') : t($localeStore, 'haves.save')}
+</button>
 ```
 
 with:
 
 ```svelte
-				{#if autosaveState.status === 'saving'}
-					<span
-						class="inline-flex items-center gap-2 rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft"
-					>
-						<span
-							class="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
-						></span>
-						{t($localeStore, 'haves.saving')}
-					</span>
-				{:else if autosaveState.status === 'saved'}
-					<span
-						class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-muted"
-					>
-						{t($localeStore, 'haves.saved')}
-					</span>
-				{:else if autosaveState.status === 'error'}
-					<span
-						class="rounded-lg border border-danger-bg px-3 py-2 text-sm text-danger"
-						title={autosaveState.error || ''}
-					>
-						{t($localeStore, 'haves.saveError')}
-					</span>
-				{/if}
+{#if autosaveState.status === 'saving'}
+	<span
+		class="inline-flex items-center gap-2 rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft"
+	>
+		<span
+			class="h-3 w-3 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
+		></span>
+		{t($localeStore, 'haves.saving')}
+	</span>
+{:else if autosaveState.status === 'saved'}
+	<span class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-muted">
+		{t($localeStore, 'haves.saved')}
+	</span>
+{:else if autosaveState.status === 'error'}
+	<span
+		class="rounded-lg border border-danger-bg px-3 py-2 text-sm text-danger"
+		title={autosaveState.error || ''}
+	>
+		{t($localeStore, 'haves.saveError')}
+	</span>
+{/if}
 ```
 
 - [ ] **Step 4: Verify no stale references**
@@ -1464,9 +1463,11 @@ Expected: build succeeds.
 - [ ] **Step 4: Formatting (changed files only)**
 
 Run:
+
 ```bash
 npx prettier --write src/lib/api/providers/request.ts src/lib/api/providers/scryfall.ts src/lib/api/providers/riftbound.ts src/lib/api/providers/pokemon.ts src/lib/server/middleware/rate-limit.ts src/lib/client/autosave.ts src/routes/collection/+page.svelte src/lib/i18n/en.ts src/lib/i18n/pt.ts src/routes/api/collection/+server.ts src/routes/api/block/+server.ts src/routes/api/cards/lookup/+server.ts src/routes/api/prices/+server.ts src/routes/api/import/+server.ts src/lib/__tests__/provider-request.test.ts src/lib/__tests__/autosave.test.ts src/lib/__tests__/rate-limit.test.ts src/lib/__tests__/riftbound.test.ts
 ```
+
 Then re-run `npm run test:unit -- --run` and `npx tsc --noEmit -p tsconfig.json` to confirm formatting didn't break anything.
 
 - [ ] **Step 5: Final commit (if formatting produced changes)**

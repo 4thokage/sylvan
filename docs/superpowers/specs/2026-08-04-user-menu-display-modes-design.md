@@ -59,6 +59,7 @@ New component `src/lib/components/UserMenu.svelte`, replacing `<UserButton>` in 
 **Avatar button**: `clerkCtx.user.imageUrl` when present; otherwise initials (from `firstName`/`lastName`/`username`/`email`) in a circle. Click toggles the dropdown.
 
 **Dropdown** (opens below the button; closes on Esc, outside click, or navigation):
+
 - Header row: full name + email.
 - **Profile** → `resolve('/users/' + user.id)` — the public profile page.
 - **Inbox** → `resolve('/inbox')` — preserves the existing custom menu item.
@@ -116,7 +117,9 @@ Grouped by card identity, collapsible. Group key = `card_id` when present, else 
 The grouping helper lives in `src/lib/client/display-mode.ts` as a pure function for unit testing:
 
 ```ts
-export function groupByCardIdentity<T extends { cardId?: string | null; name: string }>(cards: T[]): T[][];
+export function groupByCardIdentity<T extends { cardId?: string | null; name: string }>(
+	cards: T[]
+): T[][];
 ```
 
 ## Design 3 — Visual spoiler fix

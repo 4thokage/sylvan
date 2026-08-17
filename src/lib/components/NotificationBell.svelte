@@ -123,7 +123,7 @@
 			</svg>
 			{#if unreadCount > 0}
 				<span
-					class="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white"
+					class="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white"
 				>
 					{unreadCount > 9 ? '9+' : unreadCount}
 				</span>
@@ -132,7 +132,7 @@
 
 		{#if open}
 			<div
-				class="absolute right-0 top-full mt-2 w-80 rounded-lg border border-border bg-surface-raised shadow-xl"
+				class="absolute top-full right-0 mt-2 w-80 rounded-lg border border-border bg-surface-raised shadow-xl"
 			>
 				<div class="flex items-center justify-between border-b border-border px-4 py-2">
 					<span class="text-sm font-medium text-text">Notifications</span>

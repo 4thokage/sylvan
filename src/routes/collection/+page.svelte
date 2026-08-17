@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
-	import { parseCardList, parseCsv, parseDeckbox, cardsToText } from '$lib/parser';
+	import {
+		parseCardList,
+		parseCsv,
+		parseDeckbox,
+		parseTcgplayerCsv,
+		cardsToText
+	} from '$lib/parser';
 	import type { WishlistCard, LookupResult } from '$lib/types';
 	import CardTable from '$lib/components/CardTable.svelte';
 	import { page } from '$app/stores';
@@ -51,7 +57,7 @@
 	}
 
 	function groupKey(group: WishlistCard[]): string {
-		return group[0].cardId ?? normalizeName(group[0].name);
+		return group[0].cardId || normalizeName(group[0].name);
 	}
 
 	const games = [
@@ -71,6 +77,7 @@
 			imageUrl: c.imageUrl,
 			manaCost: c.manaCost,
 			prices: c.prices as WishlistCard['prices'],
+			cardId: c.cardId || null,
 			cardPrintingId: c.cardPrintingId || null,
 			set: c.set,
 			collectorNumber: c.collectorNumber,
@@ -662,14 +669,17 @@
 						</div>
 					{:else}
 						<div class="max-h-[400px] space-y-2 overflow-y-auto pr-2">
-							{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
+							{#each stacksGroups as group (group[0].cardId || normalizeName(group[0].name))}
 								{@const identity = group[0]}
 								{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
 								{@const key = groupKey(group)}
+								{@const panelId = 'stack-' + key.replace(/\s+/g, '-')}
 								<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
 									<button
 										type="button"
 										onclick={() => toggleGroup(key)}
+										aria-expanded={!collapsed.has(key)}
+										aria-controls={panelId}
 										class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
 									>
 										{#if identity.imageUrl}
@@ -696,7 +706,7 @@
 										<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
 									</button>
 									{#if !collapsed.has(key)}
-										<div class="divide-y divide-border border-t border-border">
+										<div id={panelId} class="divide-y divide-border border-t border-border">
 											{#each group as card (card.localId)}
 												<button
 													type="button"

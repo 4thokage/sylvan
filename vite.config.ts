@@ -1,3 +1,4 @@
+import { sentrySvelteKit } from '@sentry/sveltekit';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
@@ -7,6 +8,11 @@ import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 
 export default defineConfig({
 	plugins: [
+		sentrySvelteKit({
+			org: 'zenit-lp',
+			project: 'sylvan-web',
+			authToken: process.env.SENTRY_AUTH_TOKEN
+		}),
 		tailwindcss(),
 		sveltekit(),
 		devtoolsJson(),

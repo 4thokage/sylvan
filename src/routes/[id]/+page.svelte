@@ -90,7 +90,7 @@
 	}
 
 	function groupKey(group: WishlistCard[]): string {
-		return group[0].cardId ?? normalizeName(group[0].name);
+		return group[0].cardId || normalizeName(group[0].name);
 	}
 
 	onMount(async () => {
@@ -362,14 +362,17 @@
 			</div>
 		{:else}
 			<div class="space-y-2">
-				{#each stacksGroups as group (group[0].cardId ?? normalizeName(group[0].name))}
+				{#each stacksGroups as group (group[0].cardId || normalizeName(group[0].name))}
 					{@const identity = group[0]}
 					{@const totalQty = group.reduce((sum, c) => sum + c.qty, 0)}
 					{@const key = groupKey(group)}
+					{@const panelId = 'stack-' + key.replace(/\s+/g, '-')}
 					<div class="overflow-hidden rounded-lg border border-border bg-surface-raised">
 						<button
 							type="button"
 							onclick={() => toggleGroup(key)}
+							aria-expanded={!collapsed.has(key)}
+							aria-controls={panelId}
 							class="flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-surface-card"
 						>
 							{#if identity.imageUrl}
@@ -396,7 +399,7 @@
 							<span class="text-text-muted">{collapsed.has(key) ? '+' : '−'}</span>
 						</button>
 						{#if !collapsed.has(key)}
-							<div class="divide-y divide-border border-t border-border">
+							<div id={panelId} class="divide-y divide-border border-t border-border">
 								{#each group as card (card.localId)}
 									<div
 										class="flex items-center justify-between gap-3 px-4 py-2 text-xs text-text-dim"

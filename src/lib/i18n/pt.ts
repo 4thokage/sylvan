@@ -148,7 +148,7 @@ export const pt: Translations = {
 		columns: {
 			name: 'Nome',
 			qty: 'Qtd',
-			set: 'Coleção',
+			set: 'Expansão',
 			collectorNumber: '#',
 			finish: 'Acabamento',
 			condition: 'Condição',

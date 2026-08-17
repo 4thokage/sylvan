@@ -7,8 +7,7 @@ import {
 	replaceCollection,
 	clearCollection
 } from '$lib/server/services/collection.service';
-import { findOrCreateCard } from '$lib/server/services/card.service';
-import { resolvePrinting } from '$lib/server/services/card-resolver.service';
+import { resolveCards } from '$lib/server/services/card-resolver.service';
 import { getSupabase } from '$lib/server/supabase';
 import type { CardCondition } from '$lib/server/repositories/types';
 
@@ -25,61 +24,6 @@ interface CollectionCardInput {
 	isTradeable?: boolean;
 	location?: string;
 	notes?: string;
-}
-
-interface ResolvedCollectionCard {
-	card_printing_id: string;
-	quantity: number;
-	condition: CardCondition;
-	aftermarket_signed: boolean;
-	is_altered: boolean;
-	is_tradeable: boolean;
-	location: string | null;
-	notes: string | null;
-}
-
-async function resolveCardPrintings(
-	cards: CollectionCardInput[],
-	gameSlug: string
-): Promise<{ resolved: ResolvedCollectionCard[]; errors: string[] }> {
-	const resolved: ResolvedCollectionCard[] = [];
-	const errors: string[] = [];
-
-	for (const card of cards) {
-		const cardResult = await findOrCreateCard(gameSlug, card.name, card.set, card.collector_number);
-
-		if (!cardResult) {
-			errors.push(`Card not found: ${card.name}`);
-			continue;
-		}
-
-		const printingId = resolvePrinting(cardResult, {
-			name: card.name,
-			qty: card.qty,
-			set: card.set,
-			collectorNumber: card.collector_number,
-			finish: card.finish || undefined,
-			cardPrintingId: card.cardPrintingId || undefined
-		});
-
-		if (!printingId) {
-			errors.push(`No printing found for: ${card.name}`);
-			continue;
-		}
-
-		resolved.push({
-			card_printing_id: printingId,
-			quantity: card.qty,
-			condition: card.condition || 'NM',
-			aftermarket_signed: card.aftermarketSigned || false,
-			is_altered: card.isAltered || false,
-			is_tradeable: card.isTradeable !== undefined ? card.isTradeable : true,
-			location: card.location || null,
-			notes: card.notes || null
-		});
-	}
-
-	return { resolved, errors };
 }
 
 export const GET: RequestHandler = async (event) => {
@@ -113,15 +57,42 @@ export const POST: RequestHandler = async (event) => {
 		return json({ success: false, error: { message: 'Game not found' } }, { status: 400 });
 	}
 
-	const rawCards = body.cards || [];
-	const { resolved, errors } = await resolveCardPrintings(rawCards, gameSlug);
+	const rawCards = (body.cards as CollectionCardInput[] | undefined) || [];
+	const cardResults = await resolveCards(
+		gameSlug,
+		rawCards.map((c) => ({
+			name: c.name,
+			qty: c.qty,
+			set: c.set,
+			collectorNumber: c.collector_number,
+			finish: c.finish || undefined,
+			cardPrintingId: c.cardPrintingId || undefined
+		}))
+	);
 
-	if (resolved.length === 0) {
-		return json({ success: false, error: { message: errors.join(', ') } }, { status: 400 });
+	if (cardResults.resolved.length === 0) {
+		return json(
+			{ success: false, error: { message: cardResults.errors.join(', ') } },
+			{ status: 400 }
+		);
 	}
 
+	const resolved = cardResults.resolved.map((r) => {
+		const input = rawCards[r.index];
+		return {
+			card_printing_id: r.printingId,
+			quantity: r.qty,
+			condition: input?.condition || 'NM',
+			aftermarket_signed: input?.aftermarketSigned || false,
+			is_altered: input?.isAltered || false,
+			is_tradeable: input?.isTradeable !== undefined ? input.isTradeable : true,
+			location: input?.location || null,
+			notes: input?.notes || null
+		};
+	});
+
 	const result = await replaceCollection(clerkUserId, resolved, gameSlug);
-	return json({ success: true, data: { errors: [...result.errors, ...errors] } });
+	return json({ success: true, data: { errors: [...result.errors, ...cardResults.errors] } });
 };
 
 export const DELETE: RequestHandler = async (event) => {

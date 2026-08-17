@@ -24,7 +24,7 @@ export interface GroupableCard {
 export function groupByCardIdentity<T extends GroupableCard>(cards: T[]): T[][] {
 	const groups = new Map<string, T[]>();
 	for (const card of cards) {
-		const key = card.cardId ?? normalizeName(card.name);
+		const key = card.cardId || normalizeName(card.name);
 		const list = groups.get(key);
 		if (list) {
 			list.push(card);
@@ -49,12 +49,16 @@ export function formatCondition(condition: string | null | undefined): string {
 }
 
 export function formatPrice(price: string | number | null | undefined, symbol = '$'): string {
-	if (price == null || price === '') return '—';
-	return `${symbol}${price}`;
+	if (price == null) return '—';
+	const p = typeof price === 'string' ? price.trim() : price;
+	if (p === '') return '—';
+	return `${symbol}${p}`;
 }
 
 export function priceToNumber(price: string | number | null | undefined): number | null {
-	if (price == null || price === '') return null;
-	const n = typeof price === 'number' ? price : parseFloat(price);
+	if (price == null) return null;
+	const cleaned = typeof price === 'string' ? price.trim().replace(/[$€]/g, '') : price;
+	if (cleaned === '') return null;
+	const n = typeof cleaned === 'number' ? cleaned : parseFloat(cleaned);
 	return Number.isNaN(n) ? null : n;
 }

@@ -136,7 +136,7 @@
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
 			<div
-				class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+				class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
 			></div>
 		</div>
 	{:else if activeTab === 'notifications'}

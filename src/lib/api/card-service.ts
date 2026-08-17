@@ -63,6 +63,7 @@ export interface ResolvedCard {
 	collectorNumber?: string;
 	cardPrintingId?: string;
 	finish?: string;
+	cardRefs?: Array<{ providerSlug: string; identifierType: string; externalId: string }>;
 }
 
 export async function resolveCards(
@@ -91,7 +92,8 @@ export async function resolveCards(
 				set: found.setCode || undefined,
 				collectorNumber: found.collectorNumber || undefined,
 				cardPrintingId: found.id || undefined,
-				finish: found.finish || undefined
+				finish: found.finish || undefined,
+				cardRefs: found.externalRefs
 			};
 		}
 		return {

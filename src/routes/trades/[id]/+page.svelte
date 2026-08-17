@@ -366,7 +366,7 @@
 	{#if isLoading}
 		<div class="flex h-40 items-center justify-center">
 			<div
-				class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+				class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
 			></div>
 		</div>
 	{:else if !trade}
@@ -395,7 +395,7 @@
 
 			<div class="grid gap-4 md:grid-cols-2">
 				<div class="rounded-lg border border-border bg-surface-raised p-4">
-					<h2 class="mb-3 text-sm font-medium uppercase text-text-dim">You give</h2>
+					<h2 class="mb-3 text-sm font-medium text-text-dim uppercase">You give</h2>
 					{#if myItems.length === 0}
 						<p class="text-sm text-text-dim">Nothing yet.</p>
 					{:else}
@@ -424,7 +424,7 @@
 				</div>
 
 				<div class="rounded-lg border border-border bg-surface-raised p-4">
-					<h2 class="mb-3 text-sm font-medium uppercase text-text-dim">You receive</h2>
+					<h2 class="mb-3 text-sm font-medium text-text-dim uppercase">You receive</h2>
 					{#if theirItems.length === 0}
 						<p class="text-sm text-text-dim">Nothing yet.</p>
 					{:else}

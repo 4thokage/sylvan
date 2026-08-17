@@ -54,6 +54,16 @@ describe('groupByCardIdentity', () => {
 		expect(groups).toHaveLength(1);
 	});
 
+	it('treats an empty-string cardId as absent', () => {
+		const cards = [
+			{ cardId: '', name: 'Lightning Bolt', qty: 4 },
+			{ cardId: '', name: 'lightning bolt', qty: 1 },
+			{ cardId: '', name: 'Counterspell', qty: 2 }
+		];
+		const groups = groupByCardIdentity(cards);
+		expect(groups).toHaveLength(2);
+	});
+
 	it('keeps input order within groups', () => {
 		const cards = [
 			{ cardId: 'a', name: 'X', qty: 1 },
@@ -81,6 +91,11 @@ describe('formatPrice', () => {
 		expect(formatPrice(null)).toBe('—');
 		expect(formatPrice('')).toBe('—');
 	});
+
+	it('trims surrounding whitespace and treats whitespace-only as missing', () => {
+		expect(formatPrice('  12.50  ')).toBe('$12.50');
+		expect(formatPrice('  ')).toBe('—');
+	});
 });
 
 describe('priceToNumber', () => {
@@ -89,5 +104,12 @@ describe('priceToNumber', () => {
 		expect(priceToNumber(null)).toBeNull();
 		expect(priceToNumber('')).toBeNull();
 		expect(priceToNumber('abc')).toBeNull();
+	});
+
+	it('strips currency symbols and surrounding whitespace', () => {
+		expect(priceToNumber('$12.50')).toBe(12.5);
+		expect(priceToNumber('€ 3')).toBe(3);
+		expect(priceToNumber('  4  ')).toBe(4);
+		expect(priceToNumber('  ')).toBeNull();
 	});
 });

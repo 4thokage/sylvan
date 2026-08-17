@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WishlistCard } from '$lib/types';
+	import type { WishlistCard, CardFinish } from '$lib/types';
 	import type { TcgCard } from '$lib/api/providers/types';
 
 	interface Props {
@@ -69,7 +69,7 @@
 			cardPrintingId: null,
 			set: c.setCode,
 			collectorNumber: c.collectorNumber,
-			finish: c.finish || null,
+			finish: (c.finish as CardFinish) || null,
 			condition: 'NM',
 			aftermarketSigned: false,
 			isAltered: false,
@@ -115,13 +115,13 @@
 			oninput={debouncedSearch}
 			onkeydown={onKeydown}
 			onfocus={() => results.length > 0 && (isOpen = true)}
-			placeholder={placeholder}
+			{placeholder}
 			class="w-full rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm text-text placeholder-text-muted focus:border-accent/50 focus:ring-2 focus:ring-accent/50 focus:outline-none"
 			autocomplete="off"
 		/>
 		{#if isSearching}
 			<div
-				class="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
+				class="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin rounded-full border-2 border-border-strong border-t-emerald-500"
 			></div>
 		{/if}
 	</div>
@@ -134,7 +134,8 @@
 				<li>
 					<button
 						type="button"
-						class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors {highlight === i
+						class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors {highlight ===
+						i
 							? 'bg-surface-card'
 							: 'hover:bg-surface-card'}"
 						onmouseenter={() => (highlight = i)}

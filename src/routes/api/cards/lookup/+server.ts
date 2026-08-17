@@ -2,6 +2,7 @@ import type { RequestHandler } from './$types';
 import { json } from '@sveltejs/kit';
 import { lookupRateLimiter, rateLimitResponse } from '$lib/server/middleware/rate-limit';
 import { resolveCards } from '$lib/api/card-service';
+import { getSupabase } from '$lib/server/supabase';
 import { parseCardList } from '$lib/parser';
 
 export const POST: RequestHandler = async (event) => {
@@ -41,7 +42,45 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const resolved = await resolveCards(gameSlug, cards);
-		return json({ success: true, data: { cards: resolved } });
+
+		// Resolve the canonical card identity (cards.id) for any card already in
+		// the database, so manual additions group with saved stacks of the same
+		// card. Cards not yet imported keep no cardId and fall back to name.
+		const refs = resolved.flatMap((c) => c.cardRefs ?? []);
+		const cardIdByRef = new Map<string, string>();
+		if (refs.length > 0) {
+			const { data: refRows } = await getSupabase()
+				.from('card_external_refs')
+				.select('provider_slug, identifier_type, external_id, card_id')
+				.in(
+					'external_id',
+					refs.map((r) => r.externalId)
+				);
+			for (const row of (refRows || []) as Array<{
+				provider_slug: string;
+				identifier_type: string;
+				external_id: string;
+				card_id: string;
+			}>) {
+				cardIdByRef.set(
+					`${row.provider_slug}:${row.identifier_type}:${row.external_id}`,
+					row.card_id
+				);
+			}
+		}
+
+		const cardsOut = resolved.map((c) => {
+			const { cardRefs, ...rest } = c;
+			for (const ref of cardRefs ?? []) {
+				const cardId = cardIdByRef.get(
+					`${ref.providerSlug}:${ref.identifierType}:${ref.externalId}`
+				);
+				if (cardId) return { ...rest, cardId };
+			}
+			return rest;
+		});
+
+		return json({ success: true, data: { cards: cardsOut } });
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Lookup failed';
 		return json({ success: false, error: { message } }, { status: 500 });

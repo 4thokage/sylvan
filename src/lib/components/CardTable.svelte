@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
 	import { getLocaleStore, t } from '$lib/i18n';
 
-	export interface TableColumn<T> {
+	interface TableColumn<T> {
 		key: string;
 		label: string;
 		align?: 'left' | 'right';
@@ -59,6 +59,7 @@
 						class="px-3 py-2 font-medium text-text-dim {col.align === 'right'
 							? 'text-right'
 							: 'text-left'}"
+						aria-sort={sortKey === col.key ? (sortDir === 1 ? 'ascending' : 'descending') : 'none'}
 					>
 						{#if col.sortValue}
 							<button
@@ -80,12 +81,19 @@
 		</thead>
 		<tbody>
 			{#each sorted as row (rowKey(row))}
-				<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 				<tr
 					class="border-b border-border bg-surface-raised transition-colors {onRowClick
-						? 'cursor-pointer hover:bg-surface-card'
+						? 'cursor-pointer hover:bg-surface-card focus:bg-surface-card focus:outline-none'
 						: ''}"
+					tabindex={onRowClick ? 0 : undefined}
 					onclick={onRowClick ? () => onRowClick(row) : undefined}
+					onkeydown={(e) => {
+						if (!onRowClick) return;
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							onRowClick(row);
+						}
+					}}
 				>
 					{#each columns as col (col.key)}
 						<td class="px-3 py-2 text-text {col.align === 'right' ? 'text-right' : 'text-left'}">

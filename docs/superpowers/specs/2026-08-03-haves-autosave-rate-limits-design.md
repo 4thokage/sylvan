@@ -93,11 +93,11 @@ Behavior:
 
 Initial config (conservative; TCGdex and Riftbound publish no rate limits):
 
-| Provider | minIntervalMs | maxConcurrent | maxRetries | timeoutMs |
-|---|---|---|---|---|
-| Scryfall | 100 | 4 | 2 | 10_000 |
-| TCGdex | 150 | 4 | 2 | 10_000 |
-| Riftbound | 250 | 2 | 2 | 10_000 |
+| Provider  | minIntervalMs | maxConcurrent | maxRetries | timeoutMs |
+| --------- | ------------- | ------------- | ---------- | --------- |
+| Scryfall  | 100           | 4             | 2          | 10_000    |
+| TCGdex    | 150           | 4             | 2          | 10_000    |
+| Riftbound | 250           | 2             | 2          | 10_000    |
 
 Refactors:
 
@@ -112,13 +112,13 @@ In `src/lib/server/middleware/rate-limit.ts`:
 - **Per-user keying**: the limiter function becomes `rateLimit(event, userId?)`. When `userId` is provided, key as `user:${userId}`; otherwise key by IP as today. Routes that already resolve `clerkUserId` pass it. This also removes the fake-`RequestEvent` workaround in `src/routes/api/collection/+server.ts` and `src/routes/api/block/+server.ts`.
 - **Dedicated limiters** so heavy routes cannot starve light ones:
 
-  | Limiter | Limit | Routes |
-  |---|---|---|
-  | `collectionSaveRateLimiter` | 30/min | `POST /api/collection` (autosave) |
-  | `lookupRateLimiter` | 10/min | `POST /api/cards/lookup`, `POST /api/prices` |
-  | `searchRateLimiter` (existing) | 30/min | `GET /api/cards/search`, `GET /api/cards/printings` |
-  | `saveRateLimiter` (existing) | 10/min | `POST /api/import`, `POST /api/save`, `POST /api/collection/merge` |
-  | `apiRateLimiter` (existing) | 60/min | trades, messages, wishlists, ratings, blocks, user endpoints |
+  | Limiter                        | Limit  | Routes                                                             |
+  | ------------------------------ | ------ | ------------------------------------------------------------------ |
+  | `collectionSaveRateLimiter`    | 30/min | `POST /api/collection` (autosave)                                  |
+  | `lookupRateLimiter`            | 10/min | `POST /api/cards/lookup`, `POST /api/prices`                       |
+  | `searchRateLimiter` (existing) | 30/min | `GET /api/cards/search`, `GET /api/cards/printings`                |
+  | `saveRateLimiter` (existing)   | 10/min | `POST /api/import`, `POST /api/save`, `POST /api/collection/merge` |
+  | `apiRateLimiter` (existing)    | 60/min | trades, messages, wishlists, ratings, blocks, user endpoints       |
 
 - Remove the unused `authRateLimiter`.
 - Document in a comment that in-memory stores are per-isolate on Cloudflare Workers; a durable shared limiter (KV / Durable Object) is future work.

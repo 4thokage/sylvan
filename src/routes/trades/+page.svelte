@@ -255,7 +255,7 @@
 		{#if isLoading && tradeMatches.length === 0}
 			<div class="flex h-40 items-center justify-center">
 				<div
-					class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+					class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
 				></div>
 			</div>
 		{:else if tradeMatches.length === 0}
@@ -285,7 +285,7 @@
 							</div>
 						</div>
 						<div class="rounded bg-surface-card/50 p-3">
-							<h4 class="mb-2 text-xs font-medium uppercase text-text-dim">
+							<h4 class="mb-2 text-xs font-medium text-text-dim uppercase">
 								{t($localeStore, 'trades.theyWant')}
 							</h4>
 							<div class="space-y-1">
@@ -321,7 +321,7 @@
 		{#if isLoadingTrades}
 			<div class="flex h-40 items-center justify-center">
 				<div
-					class="animate-spin mb-3 inline-block h-8 w-8 rounded-full border-4 border-border-strong border-t-emerald-500"
+					class="mb-3 inline-block h-8 w-8 animate-spin rounded-full border-4 border-border-strong border-t-emerald-500"
 				></div>
 			</div>
 		{:else if userTrades.length === 0}

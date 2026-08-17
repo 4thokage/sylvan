@@ -170,9 +170,11 @@ export function parseTcgplayerCsv(text: string): ParsedCard[] {
 		if (!name || isNaN(qty) || qty <= 0) continue;
 
 		const set = setIdx >= 0 ? (row[headers[setIdx]] || '').trim() || undefined : undefined;
-		const collector_number = cnIdx >= 0 ? (row[headers[cnIdx]] || '').trim() || undefined : undefined;
+		const collector_number =
+			cnIdx >= 0 ? (row[headers[cnIdx]] || '').trim() || undefined : undefined;
 		const condition = condIdx >= 0 ? (row[headers[condIdx]] || '').trim() || undefined : undefined;
-		const foil = foilIdx >= 0 ? FOIL_TRUE.has((row[headers[foilIdx]] || '').toLowerCase().trim()) : false;
+		const foil =
+			foilIdx >= 0 ? FOIL_TRUE.has((row[headers[foilIdx]] || '').toLowerCase().trim()) : false;
 
 		const key = name.toLowerCase();
 		const existing = cards.get(key);

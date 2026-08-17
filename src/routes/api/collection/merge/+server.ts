@@ -62,7 +62,7 @@ export const POST: RequestHandler = async (event) => {
 	const result = await saveCollection(
 		clerkUserId,
 		resolved.map((r) => {
-			const input = cards.find((c) => c.name === r.cardName);
+			const input = cards[r.index];
 			return {
 				card_printing_id: r.printingId,
 				quantity: r.qty,

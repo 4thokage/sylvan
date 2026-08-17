@@ -18,7 +18,8 @@
 
 	// When the user is signed in and owns one or more haves lists, surface the
 	// value of those lists by default instead of requiring a pasted collection.
-	let useHaves = $state(data.signedIn && data.lists.length > 0);
+	let forceCustom = $state(false);
+	const useHaves = $derived(!forceCustom && data.signedIn && data.lists.length > 0);
 
 	const havesCards = $derived(
 		data.lists.flatMap((l) => l.cards.map((c) => ({ ...c, game: l.game })))
@@ -112,7 +113,7 @@
 	{#if data.signedIn && data.lists.length > 0}
 		<div class="mb-6 flex items-center justify-end">
 			<button
-				onclick={() => (useHaves = !useHaves)}
+				onclick={() => (forceCustom = !forceCustom)}
 				class="rounded-lg border border-border-strong px-3 py-2 text-sm text-text-soft transition-colors hover:bg-surface-card"
 			>
 				{useHaves
@@ -135,7 +136,7 @@
 			</div>
 
 			<div class="rounded-xl border border-border bg-surface-raised p-6">
-				<p class="text-sm font-medium text-text-dim mb-3">
+				<p class="mb-3 text-sm font-medium text-text-dim">
 					{t($localeStore, 'tools.value.topCards')}
 				</p>
 				{#if havesTopCards.length === 0}
@@ -176,7 +177,7 @@
 			</div>
 		</div>
 	{:else}
-		<label for="value-input" class="block text-sm font-medium text-text-dim mb-2">
+		<label for="value-input" class="mb-2 block text-sm font-medium text-text-dim">
 			{t($localeStore, 'tools.value.inputLabel')}
 		</label>
 		<textarea
@@ -206,7 +207,7 @@
 				</div>
 
 				<div class="rounded-xl border border-border bg-surface-raised p-6">
-					<p class="text-sm font-medium text-text-dim mb-3">
+					<p class="mb-3 text-sm font-medium text-text-dim">
 						{t($localeStore, 'tools.value.topCards')}
 					</p>
 					{#if topCards.length === 0}

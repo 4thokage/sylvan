@@ -4,7 +4,9 @@
 -- Aligned with ADRs 0001-0009 plus auth (0010), trade RPC (0011), and external identity mapping (0013).
 
 -- 0. Extensions
-create extension if not exists pg_trgm;
+create schema if not exists extensions;
+create extension if not exists pg_trgm with schema extensions;
+grant usage on schema extensions to public;
 
 -- 1. Games (MTG, Pokémon, Riftbound, etc.)
 create table if not exists public.games (
@@ -45,7 +47,7 @@ create table if not exists public.cards (
 );
 
 create index if not exists idx_cards_game on public.cards(game_id);
-create index if not exists idx_cards_name_trgm on public.cards using gin(normalized_name gin_trgm_ops);
+create index if not exists idx_cards_name_trgm on public.cards using gin(normalized_name extensions.gin_trgm_ops);
 
 -- 4. Card Printings (factory-printed identity layer)
 create table if not exists public.card_printings (
@@ -373,8 +375,6 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  v_item jsonb;
 begin
   -- Authenticated callers must act as themselves; anonymous callers pass null user_id.
   if p_user_id is not null and p_user_id <> public.current_user_id() then
@@ -391,29 +391,28 @@ begin
     p_id, p_user_id, p_game_id, p_title, p_owner_name, p_creator_fingerprint, p_visibility
   );
 
-  for v_item in select * from jsonb_array_elements(p_items) loop
-    insert into public.wishlist_items (
-      wishlist_id,
-      card_id,
-      card_printing_id,
-      quantity,
-      condition,
-      finish,
-      aftermarket_signed,
-      is_altered,
-      language
-    ) values (
-      p_id,
-      (v_item->>'card_id')::uuid,
-      nullif(v_item->>'card_printing_id', '')::uuid,
-      coalesce((v_item->>'quantity')::integer, 1),
-      nullif(v_item->>'condition', ''),
-      nullif(v_item->>'finish', ''),
-      case when v_item->>'aftermarket_signed' is null then null else (v_item->>'aftermarket_signed')::boolean end,
-      case when v_item->>'is_altered' is null then null else (v_item->>'is_altered')::boolean end,
-      nullif(v_item->>'language', '')
-    );
-  end loop;
+  insert into public.wishlist_items (
+    wishlist_id,
+    card_id,
+    card_printing_id,
+    quantity,
+    condition,
+    finish,
+    aftermarket_signed,
+    is_altered,
+    language
+  )
+  select
+    p_id,
+    (v_item->>'card_id')::uuid,
+    nullif(v_item->>'card_printing_id', '')::uuid,
+    coalesce((v_item->>'quantity')::integer, 1),
+    nullif(v_item->>'condition', ''),
+    nullif(v_item->>'finish', ''),
+    case when v_item->>'aftermarket_signed' is null then null else (v_item->>'aftermarket_signed')::boolean end,
+    case when v_item->>'is_altered' is null then null else (v_item->>'is_altered')::boolean end,
+    nullif(v_item->>'language', '')
+  from jsonb_array_elements(p_items) as v_item;
 
   return p_id;
 end;
@@ -1027,9 +1026,9 @@ alter table public.user_sessions enable row level security;
    on public.user_sessions for select
    using (user_id = current_user_id());
 
- create policy "User sessions insert by anonymous"
-   on public.user_sessions for insert
-   with check (true);
+  create policy "User sessions insert by anonymous"
+    on public.user_sessions for insert
+    with check (user_id is null);
 
  create policy "User sessions update by owner via RPC"
    on public.user_sessions for update
@@ -1238,12 +1237,74 @@ begin
     'current_offer_id', v_trade.current_offer_id,
     'offer_note', coalesce(v_offer.note, v_trade.proposer_note),
     'offer_created_at', v_offer.created_at,
-     'items', v_items
+  'items', v_items
   );
 end;
 $$;
 
-grant execute on function public.get_trade_details(uuid) to authenticated, anon;
+grant execute on function public.get_trade_details(uuid) to service_role;
+
+-- PostgreSQL grants EXECUTE to PUBLIC by default on function creation, which makes
+-- every RPC callable by the public anon/authenticated keys. Revoke from PUBLIC
+-- (anon/authenticated inherit it) so the RPC surface is reachable only by the
+-- service_role, which is the only caller (server-side, via hooks.server.ts).
+revoke execute on all functions in schema public from public, anon, authenticated;
+alter default privileges in schema public revoke execute on functions from public, anon, authenticated;
+
+-- Trade negotiation helper: expose counterparty stacks to participants
+-- via a security-definer RPC (mirrors the production function that was
+-- missing from the earlier consolidated migration).
+create or replace function public.get_counterparty_stacks(p_trade_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := public.current_user_id();
+  v_trade record;
+  v_other_id uuid;
+  v_stacks jsonb;
+begin
+  select * into v_trade from public.trades where id = p_trade_id;
+
+  if v_trade is null then
+    raise exception 'Trade not found';
+  end if;
+
+  if v_trade.proposer_id <> v_user_id and v_trade.recipient_id <> v_user_id then
+    raise exception 'Not a participant';
+  end if;
+
+  v_other_id := case when v_trade.proposer_id = v_user_id then v_trade.recipient_id else v_trade.proposer_id end;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'user_card_id', uc.id,
+      'quantity', uc.quantity,
+      'available_quantity', public.available_quantity(uc.id, null),
+      'condition', uc.condition,
+      'aftermarket_signed', uc.aftermarket_signed,
+      'is_altered', uc.is_altered,
+      'is_tradeable', uc.is_tradeable,
+      'card_name', c.name,
+      'set_code', cp.set_code,
+      'collector_number', cp.collector_number,
+      'finish', cp.finish,
+      'language', cp.language,
+      'image_url', coalesce(cp.image_url, c.image_url)
+    )
+  ), '[]'::jsonb)
+  into v_stacks
+  from public.user_cards uc
+  join public.card_printings cp on cp.id = uc.card_printing_id
+  join public.cards c on c.id = cp.card_id
+  where uc.user_id = v_other_id
+    and uc.is_tradeable = true;
+
+  return v_stacks;
+end;
+$$;
 
 -- =====================================================================
 -- Role grants: ensure Supabase roles can access the schema objects.
@@ -1258,14 +1319,14 @@ grant select on all tables in schema public to anon;
 grant all on all sequences in schema public to service_role, authenticated;
 grant usage on all sequences in schema public to anon;
 
-grant execute on all functions in schema public to service_role, authenticated, anon;
+grant execute on all functions in schema public to service_role;
 
 alter default privileges in schema public grant all on tables to service_role, authenticated;
 alter default privileges in schema public grant select on tables to anon;
 alter default privileges in schema public grant all on sequences to service_role, authenticated;
 alter default privileges in schema public grant usage on sequences to anon;
-alter default privileges in schema public grant execute on functions to service_role, authenticated, anon;
-grant execute on function public.get_counterparty_stacks(uuid) to authenticated, anon;
+alter default privileges in schema public grant execute on functions to service_role;
+grant execute on function public.get_counterparty_stacks(uuid) to service_role;
 -- Include the current offer creator in get_trade_details so clients know whose turn it is.
 
 create or replace function public.get_trade_details(p_trade_id uuid)
@@ -1340,7 +1401,7 @@ begin
 end;
 $$;
 
-grant execute on function public.get_trade_details(uuid) to authenticated, anon;
+grant execute on function public.get_trade_details(uuid) to service_role;
 -- Create notifications for trade and message events so users see updates in real time.
 
 create or replace function public.notify_on_offer()
@@ -1518,7 +1579,7 @@ begin
 end;
 $$;
 
-grant execute on function public.get_public_profile(uuid) to authenticated, anon;
+grant execute on function public.get_public_profile(uuid) to service_role;
 -- trade_offer_items does not have a side column; remove it from get_trade_details.
 
 create or replace function public.get_trade_details(p_trade_id uuid)
@@ -1592,4 +1653,4 @@ begin
 end;
 $$;
 
-grant execute on function public.get_trade_details(uuid) to authenticated, anon;
+grant execute on function public.get_trade_details(uuid) to service_role;

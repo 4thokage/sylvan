@@ -86,6 +86,7 @@ export interface LookupResult {
 	imageUrl: string | null;
 	manaCost: string | null;
 	prices?: CardPrices;
+	cardId?: string;
 	cardPrintingId?: string;
 	set?: string;
 	collectorNumber?: string;

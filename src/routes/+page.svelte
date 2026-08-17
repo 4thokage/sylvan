@@ -51,6 +51,7 @@
 			imageUrl: c.imageUrl,
 			manaCost: c.manaCost,
 			prices: c.prices as WishlistCard['prices'],
+			cardId: c.cardId || null,
 			cardPrintingId: c.cardPrintingId || null,
 			set: c.set,
 			collectorNumber: c.collectorNumber,
@@ -284,7 +285,7 @@
 		{:else}
 			{#if isSignedIn}
 				<div class="mb-8">
-					<div class="flex items-center justify-between mb-4">
+					<div class="mb-4 flex items-center justify-between">
 						<h2 class="text-lg font-medium">{t($localeStore, 'wants.myWishlists')}</h2>
 						<button
 							onclick={() => (showCreate = true)}

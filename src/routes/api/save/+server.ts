@@ -55,14 +55,15 @@ export const POST: RequestHandler = async (event) => {
 				collectorNumber: c.collector_number,
 				finish: c.finish || undefined,
 				cardPrintingId: c.cardPrintingId || undefined
-			}))
+			})),
+			game.id
 		);
 		if (cardResults.errors.length > 0) {
 			return json({ success: false, error: { message: cardResults.errors[0] } }, { status: 400 });
 		}
 
 		const resolvedCards = cardResults.resolved.map((c) => {
-			const input = cards.find((cr) => cr.name === c.cardName);
+			const input = cards[c.index];
 			return {
 				card_id: c.cardId,
 				qty: c.qty,

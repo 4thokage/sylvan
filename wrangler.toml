@@ -1,0 +1,8 @@
+name = "sylvan-web"
+compatibility_date = "2026-08-01"
+# Raise the per-Worker-invocation subrequest cap so wishlist saves that
+# resolve many new (not-yet-catalogued) cards don't hit the default limit.
+# The code path is also optimized to keep subrequests low regardless of size.
+# Note: Free plans cap subrequests at 50/invocation and ignore this setting;
+# the code reductions below are what make large saves work there.
+limits = { subrequests = 1000 }

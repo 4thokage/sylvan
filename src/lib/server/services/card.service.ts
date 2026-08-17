@@ -59,7 +59,7 @@ async function findPrintingByExternalRef(
 	);
 }
 
-async function ensureCard(
+export async function ensureCard(
 	gameId: string,
 	providerCard: {
 		name: string;
@@ -124,7 +124,7 @@ async function ensureCard(
 	return newCard;
 }
 
-async function ensurePrinting(
+export async function ensurePrinting(
 	cardId: string,
 	gameId: string,
 	printing: {
@@ -205,6 +205,239 @@ async function ensurePrinting(
 	return newPrinting;
 }
 
+export interface BulkCardSpec {
+	key: string;
+	name: string;
+	normalizedName: string;
+	imageUrl: string | null;
+	typeLine: string | null;
+	externalRefs: Array<{ providerSlug: string; identifierType: string; externalId: string }>;
+}
+
+export interface BulkPrintingSpec {
+	comboKey: string;
+	groupKey: string;
+	printing: {
+		id: string;
+		setCode: string;
+		setName: string;
+		collectorNumber: string | null;
+		rarity: string | null;
+		imageUrl: string | null;
+		language: string;
+		finish: string;
+		factorySigned: boolean;
+		prices: { usd: string | null; eur: string | null };
+		externalRefs: Array<{ providerSlug: string; identifierType: string; externalId: string }>;
+	};
+}
+
+export interface BulkEnsureResult {
+	cards: Map<string, string>;
+	printings: Map<string, string>;
+}
+
+function printingDimsKey(p: {
+	setCode: string;
+	collectorNumber: string | null;
+	language: string;
+	finish: string;
+	factorySigned: boolean;
+}): string {
+	return `${p.setCode}\u0000${p.collectorNumber ?? ''}\u0000${p.language}\u0000${p.finish}\u0000${p.factorySigned}`;
+}
+
+// Resolve and upsert many cards and printings in a bounded number of Supabase
+// round trips (independent of how many items are supplied). Used by the
+// wishlist/collection save path so a single Worker invocation does not exceed
+// the platform subrequest limit for large lists of not-yet-catalogued cards.
+export async function bulkEnsureCardsAndPrintings(
+	gameId: string,
+	cardSpecs: BulkCardSpec[],
+	printingSpecs: BulkPrintingSpec[]
+): Promise<BulkEnsureResult> {
+	const cardIds = new Map<string, string>();
+	const printingIds = new Map<string, string>();
+
+	if (cardSpecs.length === 0) {
+		// Still resolve printings if any were passed (e.g. cards already known),
+		// but the save path always supplies both together.
+		for (const ps of printingSpecs) printingIds.set(ps.comboKey, ps.comboKey);
+		return { cards: cardIds, printings: printingIds };
+	}
+
+	// --- Cards: find existing by normalized name, then create the rest. ---
+	const normalizedNames = Array.from(new Set(cardSpecs.map((c) => c.normalizedName)));
+	const { data: existingCards } = await getSupabase()
+		.from('cards')
+		.select('id, normalized_name')
+		.in('normalized_name', normalizedNames)
+		.eq('game_id', gameId);
+	for (const row of (existingCards || []) as Array<{ id: string; normalized_name: string }>) {
+		cardIds.set(row.normalized_name, row.id);
+	}
+
+	const newCardSpecs = cardSpecs.filter((c) => !cardIds.has(c.normalizedName));
+	if (newCardSpecs.length > 0) {
+		const { data: insertedCards, error } = await getSupabase()
+			.from('cards')
+			.insert(
+				newCardSpecs.map((c) => ({
+					game_id: gameId,
+					name: c.name,
+					normalized_name: c.normalizedName,
+					image_url: c.imageUrl || null,
+					game_data: { type_line: c.typeLine }
+				}))
+			)
+			.select('id, normalized_name');
+		if (error) throw new Error(`Failed to create cards: ${error.message}`);
+		for (const row of (insertedCards || []) as Array<{ id: string; normalized_name: string }>) {
+			cardIds.set(row.normalized_name, row.id);
+		}
+
+		const cardRefs = newCardSpecs.flatMap((c) =>
+			c.externalRefs.map((r) => ({
+				card_id: cardIds.get(c.normalizedName) as string,
+				provider_slug: r.providerSlug,
+				identifier_type: r.identifierType,
+				external_id: r.externalId
+			}))
+		);
+		if (cardRefs.length > 0) {
+			await getSupabase().from('card_external_refs').upsert(cardRefs, {
+				onConflict: 'provider_slug,identifier_type,external_id',
+				ignoreDuplicates: true
+			});
+		}
+	}
+
+	// --- Printings: find existing by dimensions, then create the rest. ---
+	if (printingSpecs.length > 0) {
+		const setCodes = Array.from(new Set(printingSpecs.map((p) => p.printing.setCode)));
+		const { data: existingPrintings } = await getSupabase()
+			.from('card_printings')
+			.select('id, set_code, collector_number, language, finish, factory_signed')
+			.in('set_code', setCodes)
+			.eq('game_id', gameId);
+
+		const existingByDims = new Map<string, string>();
+		for (const row of (existingPrintings || []) as Array<{
+			id: string;
+			set_code: string;
+			collector_number: string | null;
+			language: string;
+			finish: string;
+			factory_signed: boolean;
+		}>) {
+			existingByDims.set(
+				printingDimsKey({
+					setCode: row.set_code,
+					collectorNumber: row.collector_number,
+					language: row.language,
+					finish: row.finish,
+					factorySigned: row.factory_signed
+				}),
+				row.id
+			);
+		}
+
+		const newPrintingSpecs: BulkPrintingSpec[] = [];
+		for (const ps of printingSpecs) {
+			const dims = printingDimsKey(ps.printing);
+			const existingId = existingByDims.get(dims);
+			if (existingId) {
+				printingIds.set(ps.comboKey, existingId);
+			} else {
+				newPrintingSpecs.push(ps);
+			}
+		}
+
+		if (newPrintingSpecs.length > 0) {
+			const { data: insertedPrintings, error } = await getSupabase()
+				.from('card_printings')
+				.insert(
+					newPrintingSpecs.map((ps) => ({
+						card_id: cardIds.get(ps.groupKey) as string,
+						game_id: gameId,
+						set_code: ps.printing.setCode,
+						set_name: ps.printing.setName,
+						collector_number: ps.printing.collectorNumber,
+						rarity: ps.printing.rarity,
+						language: ps.printing.language,
+						finish: ps.printing.finish,
+						factory_signed: ps.printing.factorySigned,
+						image_url: ps.printing.imageUrl || null,
+						market_price_usd: ps.printing.prices.usd ? parseFloat(ps.printing.prices.usd) : null,
+						market_price_eur: ps.printing.prices.eur ? parseFloat(ps.printing.prices.eur) : null,
+						last_price_update: new Date().toISOString()
+					}))
+				)
+				.select('id, set_code, collector_number, language, finish, factory_signed');
+			if (error) throw new Error(`Failed to create printings: ${error.message}`);
+
+			for (const row of (insertedPrintings || []) as Array<{
+				id: string;
+				set_code: string;
+				collector_number: string | null;
+				language: string;
+				finish: string;
+				factory_signed: boolean;
+			}>) {
+				const dims = printingDimsKey({
+					setCode: row.set_code,
+					collectorNumber: row.collector_number,
+					language: row.language,
+					finish: row.finish,
+					factorySigned: row.factory_signed
+				});
+				const spec = newPrintingSpecs.find((ps) => printingDimsKey(ps.printing) === dims);
+				if (spec) printingIds.set(spec.comboKey, row.id);
+			}
+
+			const printingRefs = newPrintingSpecs.flatMap((ps) =>
+				ps.printing.externalRefs.map((r) => ({
+					printing_id: printingIds.get(ps.comboKey) as string,
+					provider_slug: r.providerSlug,
+					identifier_type: r.identifierType,
+					external_id: r.externalId
+				}))
+			);
+			if (printingRefs.length > 0) {
+				await getSupabase().from('printing_external_refs').upsert(printingRefs, {
+					onConflict: 'provider_slug,identifier_type,external_id',
+					ignoreDuplicates: true
+				});
+			}
+		}
+	}
+
+	return { cards: cardIds, printings: printingIds };
+}
+
+export function cardRowToLookupResult(card: Record<string, unknown>): CardLookupResult {
+	return {
+		id: card.id as string,
+		name: card.name as string,
+		normalizedName: card.normalized_name as string,
+		imageUrl: card.image_url as string | null,
+		gameData: card.game_data as Record<string, unknown>,
+		printings: ((card.card_printings as Array<Record<string, unknown>>) || []).map((p) => ({
+			id: p.id as string,
+			setCode: p.set_code as string,
+			setName: p.set_name as string,
+			collectorNumber: p.collector_number as string | null,
+			rarity: p.rarity as string | null,
+			imageUrl: p.image_url as string | null,
+			language: p.language as string,
+			finish: p.finish as string,
+			factorySigned: p.factory_signed as boolean,
+			marketPriceUsd: p.market_price_usd as number | null,
+			marketPriceEur: p.market_price_eur as number | null
+		}))
+	};
+}
+
 export async function findOrCreateCard(
 	gameSlug: string,
 	name: string,
@@ -252,26 +485,7 @@ export async function findOrCreateCard(
 		card = reloaded;
 	}
 
-	return {
-		id: card.id as string,
-		name: card.name as string,
-		normalizedName: card.normalized_name as string,
-		imageUrl: card.image_url as string | null,
-		gameData: card.game_data as Record<string, unknown>,
-		printings: ((card.card_printings as Array<Record<string, unknown>>) || []).map((p) => ({
-			id: p.id as string,
-			setCode: p.set_code as string,
-			setName: p.set_name as string,
-			collectorNumber: p.collector_number as string | null,
-			rarity: p.rarity as string | null,
-			imageUrl: p.image_url as string | null,
-			language: p.language as string,
-			finish: p.finish as string,
-			factorySigned: p.factory_signed as boolean,
-			marketPriceUsd: p.market_price_usd as number | null,
-			marketPriceEur: p.market_price_eur as number | null
-		}))
-	};
+	return cardRowToLookupResult(card);
 }
 
 export async function searchCards(query: string, gameSlug: string, limit = 25) {
